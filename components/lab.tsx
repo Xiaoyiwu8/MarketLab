@@ -193,15 +193,21 @@ const defaults: BacktestConfig = {
   start: '2025-01-01',
   end: '2026-09-04',
 };
-export default function Lab() {
-  const [input, setInput] = useState('AAPL, MSFT, NVDA, SPY'),
-    [provider, setProvider] = useState('demo'),
+function Workspace({
+  initialData,
+  initialInput,
+  initialProvider,
+}: {
+  initialData: Series[];
+  initialInput: string;
+  initialProvider: string;
+}) {
+  const [input, setInput] = useState(initialInput),
+    [provider, setProvider] = useState(initialProvider),
     [key, setKey] = useState(''),
     [secret, setSecret] = useState(''),
-    [data, setData] = useState<Series[]>(() =>
-      ['AAPL', 'MSFT', 'NVDA', 'SPY'].map(demo),
-    ),
-    [selected, setSelected] = useState('AAPL'),
+    [data, setData] = useState<Series[]>(initialData),
+    [selected, setSelected] = useState(initialData[0].symbol),
     [tab, setTab] = useState('analysis'),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
@@ -730,6 +736,23 @@ export default function Lab() {
             {busy ? '正在获取…' : '分析股票 →'}
           </button>
         </form>
+        {mode === 'demo' && (
+          <div
+            role="alert"
+            style={{
+              background: '#4b1726',
+              color: '#ffdce3',
+              padding: 18,
+              border: '2px solid #ff768b',
+              borderRadius: 8,
+              marginTop: 18,
+              fontWeight: 700,
+            }}
+          >
+            演示模式：下方所有股票价格均为虚构数据，不是该股票真实行情。请切换“腾讯
+            · 公共延迟行情”并重新分析。
+          </div>
+        )}
         <div className="notice">
           {current.source} · 日线截至 {current.asOf} · {current.adjustment}
           {current.quote
@@ -774,7 +797,7 @@ export default function Lab() {
           <Metrics
             items={[
               [
-                `${current.symbol} 参考价`,
+                `${current.symbol} ${mode === 'demo' ? '虚构演示价' : '行情参考价格'}`,
                 '$' + fmt(spot),
                 '最新成交或最后日线',
               ],
@@ -1725,6 +1748,134 @@ export default function Lab() {
         </a>{' '}
         · 数据口径、日期与未实现项均在对应页面列明。
       </footer>
+    </main>
+  );
+}
+
+export default function Lab() {
+  const [initial, setInitial] = useState<{
+    data: Series[];
+    input: string;
+    provider: string;
+  } | null>(null);
+  const [input, setInput] = useState('GOOGL');
+  const [provider, setProvider] = useState('tencent');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const requesting = useRef(false);
+  async function start() {
+    if (requesting.current) return;
+    requesting.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const symbols = [
+        ...new Set(
+          input
+            .toUpperCase()
+            .split(/[,，\s]+/)
+            .filter(Boolean),
+        ),
+      ];
+      if (
+        !symbols.length ||
+        symbols.length > 12 ||
+        symbols.some((s) => !/^[A-Z][A-Z0-9.-]{0,9}$/.test(s))
+      )
+        throw Error('请输入1至12个有效美股代码。');
+      let data: Series[];
+      if (provider === 'demo') data = symbols.map(demo);
+      else {
+        const r = await fetch('/api/market', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbols, provider }),
+        });
+        const d: any = await r.json();
+        if (!r.ok) throw Error(d.error ?? '行情加载失败');
+        const failed = d.results.filter((x: any) => x.error);
+        if (failed.length)
+          throw Error(
+            failed.map((x: any) => `${x.symbol}: ${x.error}`).join('；'),
+          );
+        data = d.results;
+      }
+      setInitial({ data, input: symbols.join(', '), provider });
+    } catch (e) {
+      setError(
+        (e as Error).message + '。未生成或替换为虚构价格，请重试或更换来源。',
+      );
+    } finally {
+      requesting.current = false;
+      setBusy(false);
+    }
+  }
+  useEffect(() => {
+    void start();
+  }, []);
+  if (initial)
+    return (
+      <Workspace
+        initialData={initial.data}
+        initialInput={initial.input}
+        initialProvider={initial.provider}
+      />
+    );
+  return (
+    <main className="shell">
+      <header>
+        <div className="brand">
+          ◈ MARKET LAB <span>美股 · 期权研究台</span>
+        </div>
+        <span className="badge">真实公共行情 · 模拟交易</span>
+      </header>
+      <section className="heading">
+        <div>
+          <p className="eyebrow">RESEARCH WORKSPACE</p>
+          <h1>输入股票代码，获取真实行情。</h1>
+          <p>价格加载成功后才显示分析结果；失败时不会填入演示价格。</p>
+        </div>
+      </section>
+      <section className="panel">
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void start();
+          }}
+        >
+          <label style={{ flex: 1, minWidth: 220 }}>
+            股票代码
+            <input
+              value={input}
+              aria-label="股票代码"
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="GOOGL, AAPL, MSFT"
+            />
+          </label>
+          <Pick
+            label="行情来源"
+            value={provider}
+            onChange={setProvider}
+            options={{
+              tencent: '腾讯 · 真实公共延迟行情',
+              yahoo: 'Yahoo · 真实公共行情',
+              demo: '虚构价格 · 仅体验演示',
+            }}
+          />
+          <button disabled={busy} type="submit" style={{ alignSelf: 'end' }}>
+            {busy ? '正在获取真实行情…' : '分析股票 →'}
+          </button>
+        </form>
+        {error && (
+          <p className="message" role="alert">
+            {error}
+          </p>
+        )}
+        <p className="fineprint">
+          例如 GOOGL 为 Alphabet A 类股，GOOG 为 C 类股；两者代码和价格不同。
+        </p>
+      </section>
     </main>
   );
 }
