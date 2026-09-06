@@ -1,6 +1,7 @@
 'use client';
 import type { Series } from '@/lib/engine';
 import { volumeSummary } from '@/lib/volume';
+import { volumeRead, avg } from '@/lib/review';
 import {
   Table,
   TableHeader,
@@ -26,7 +27,22 @@ export default function VolumePanel({ series }: { series: Series }) {
   if (!s.last)
     return <section className="panel">暂无已完成交易日的成交量数据。</section>;
   const rows = s.completed.slice(-60);
-  const max = Math.max(1, ...rows.map((b) => b.volume));
+  const reading = volumeRead(s.completed);
+  const moving = [5, 20].map((n) => ({
+    n,
+    values: s.completed
+      .map((b, i) =>
+        i >= n - 1
+          ? avg(s.completed.slice(i - n + 1, i + 1).map((x) => x.volume))
+          : null,
+      )
+      .slice(-60),
+  }));
+  const max = Math.max(
+    1,
+    ...rows.map((b) => b.volume),
+    ...moving.flatMap((m) => m.values.filter((x): x is number => x !== null)),
+  );
   const cards = [
     [
       '最近完整日成交量',
@@ -98,6 +114,22 @@ export default function VolumePanel({ series }: { series: Series }) {
             </text>
           </g>
         ))}
+        {moving.map((m, index) => (
+          <polyline
+            key={m.n}
+            points={m.values
+              .map((v, i) =>
+                v === null
+                  ? null
+                  : `${78 + ((i + 0.5) * 850) / rows.length},${205 - (v / max) * 175}`,
+              )
+              .filter(Boolean)
+              .join(' ')}
+            fill="none"
+            stroke={index === 0 ? '#e8bb66' : '#8da3ff'}
+            strokeWidth="2"
+          />
+        ))}
         {rows.map((b, i) => (
           <rect
             key={b.date}
@@ -119,6 +151,11 @@ export default function VolumePanel({ series }: { series: Series }) {
           {s.last.date}
         </text>
       </svg>
+      <p>
+        黄色：VMA5 · 蓝色：VMA20（包含当日）。{reading?.state} ·{' '}
+        {reading?.pairing}。VMA5 {number(reading?.ma5)} 股；VMA10{' '}
+        {number(reading?.ma10)} 股；VMA20 {number(reading?.ma20)} 股。
+      </p>
       <details>
         <summary>查看最近20个交易日明细</summary>
         <Table>

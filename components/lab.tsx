@@ -24,6 +24,8 @@ import VolumePanel from './volume-panel';
 import TradeGuidancePanel from './trade-guidance-panel';
 import DecisionBanner from './decision-banner';
 import SectorPanel from './sector-panel';
+import ReviewDashboard from './review-dashboard';
+import SensitivityPanel from './sensitivity-panel';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -218,6 +220,10 @@ function Workspace({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [failedQuery, setFailedQuery] = useState(''),
+    [riskGate, setRiskGate] = useState({
+      symbol: '',
+      reason: '正在核验大盘与风控',
+    }),
     [strategy, setStrategy] = useState<Strategy>('trend'),
     [config, setConfig] = useState<BacktestConfig>(defaults),
     [result, setResult] = useState<{
@@ -231,6 +237,13 @@ function Workspace({
     [ready, setReady] = useState(false),
     [auto, setAuto] = useState(false),
     [alerts, setAlerts] = useState<{ time: string; text: string }[]>([]),
+    [customAlert, setCustomAlert] = useState({
+      symbol: '',
+      above: '',
+      below: '',
+      volume: '2',
+      enabled: false,
+    }),
     [quantity, setQuantity] = useState(10),
     [maxPos, setMaxPos] = useState(0.25),
     [ddLimit, setDdLimit] = useState(0.15),
@@ -361,6 +374,54 @@ function Workspace({
     setOverrides(null);
   }, [optionKind, strike, width, days, iv, rate, dividend]);
   function logSignal(d: Series, s: Strategy) {
+    if (
+      customAlert.enabled &&
+      customAlert.symbol.toUpperCase() === d.symbol &&
+      !/合成|演示/.test(d.source)
+    ) {
+      const last = d.bars.at(-1),
+        prev = d.bars.at(-2);
+      if (last && prev && Date.now() - Date.parse(last.date) < 7 * 86400000) {
+        const ratio = indicators(d.bars).at(-1)?.volumeRatio;
+        const matches = [
+          [
+            customAlert.above !== '' &&
+              Number(customAlert.above) > 0 &&
+              last.close > Number(customAlert.above) &&
+              prev.close <= Number(customAlert.above),
+            `收盘上穿 ${customAlert.above}`,
+          ],
+          [
+            customAlert.below !== '' &&
+              Number(customAlert.below) > 0 &&
+              last.close < Number(customAlert.below) &&
+              prev.close >= Number(customAlert.below),
+            `收盘下穿 ${customAlert.below}`,
+          ],
+          [
+            customAlert.volume !== '' &&
+              Number(customAlert.volume) > 0 &&
+              ratio != null &&
+              ratio >= Number(customAlert.volume),
+            `量比 ${ratio?.toFixed(2)}× ≥ ${customAlert.volume}×`,
+          ],
+        ] as const;
+        for (const [matched, reason] of matches) {
+          const alertId = `custom/${d.symbol}/${last.date}/${reason}`;
+          if (!matched || alertKeys.current.has(alertId)) continue;
+          alertKeys.current.add(alertId);
+          const text = `${d.symbol} · 自定义提醒：${reason} · ${last.date} · ${d.source}`;
+          setAlerts((old) =>
+            [{ time: new Date().toISOString(), text }, ...old].slice(0, 200),
+          );
+          if (
+            typeof Notification !== 'undefined' &&
+            Notification.permission === 'granted'
+          )
+            new Notification('Market Lab 自定义提醒', { body: text });
+        }
+      }
+    }
     const a = indicators(d.bars),
       v = action(a, a.length - 1, s),
       id = `${d.source}/${d.symbol}/${d.asOf}/${s}/${v}`;
@@ -495,7 +556,17 @@ function Workspace({
       void load();
     }, 60000);
     return () => clearInterval(id);
-  }, [auto, input, provider, key, secret, strategy, ddLimit, stop]);
+  }, [
+    auto,
+    input,
+    provider,
+    key,
+    secret,
+    strategy,
+    ddLimit,
+    stop,
+    customAlert,
+  ]);
   useEffect(() => {
     const ctx = (document as any).modelContext;
     if (!ctx?.registerTool) return;
@@ -839,7 +910,15 @@ function Workspace({
         </section>
       )}
       <div hidden={!!failedQuery || busy}>
-        <DecisionBanner series={current} onDetails={() => setTab('guidance')} />
+        <DecisionBanner
+          series={current}
+          onDetails={() => setTab('guidance')}
+          riskBlock={
+            riskGate.symbol === current.symbol
+              ? riskGate.reason
+              : '正在核验大盘与风控'
+          }
+        />
         <SectorPanel
           onAnalyze={(symbols) => {
             setInput(symbols);
@@ -857,7 +936,7 @@ function Workspace({
             }}
           >
             {[
-              ['research', '数据与回测中心 V2'],
+              ['research', '首页 · 大盘与风控'],
               ['analysis', '01 股票分析'],
               ['volume', '成交量'],
               ['guidance', '支撑压力 / 买卖提示'],
@@ -872,6 +951,7 @@ function Workspace({
             ))}
           </TabsList>
           <TabsContent value="research" keepMounted>
+            <ReviewDashboard series={current} onRisk={setRiskGate} />
             <DataCenter
               data={data}
               onQuotes={(quotes, source) =>
@@ -1068,6 +1148,10 @@ function Workspace({
             ))}
           </TabsContent>
           <TabsContent value="backtest">
+            <SensitivityPanel
+              key={current.symbol + current.asOf + current.source}
+              series={current}
+            />
             <section className="panel">
               <div className="sectionTitle">
                 <h2>{current.symbol} · 股票策略回测</h2>
@@ -1721,6 +1805,56 @@ function Workspace({
                   e.target.value = '';
                 }}
               />
+            </section>
+            <section className="panel">
+              <h2>自定义价格与量能提醒</h2>
+              <p>
+                按最新完整日线检查：价格跨越阈值或量比异常，进入下方提醒日志；配置邮件后可使用同一提醒流。仅页面开启、刷新行情或扫描时执行。
+              </p>
+              <div className="formgrid">
+                {[
+                  ['symbol', '股票代码'],
+                  ['above', '收盘上穿价格'],
+                  ['below', '收盘下穿价格'],
+                  ['volume', '量比至少达到（倍）'],
+                ].map(([key, label]) => (
+                  <label key={key}>
+                    {label}
+                    <input
+                      value={
+                        customAlert[
+                          key as 'symbol' | 'above' | 'below' | 'volume'
+                        ]
+                      }
+                      onChange={(e) =>
+                        setCustomAlert((old) => ({
+                          ...old,
+                          [key]: e.target.value.toUpperCase(),
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={customAlert.enabled}
+                  onChange={(e) =>
+                    setCustomAlert((old) => ({
+                      ...old,
+                      enabled: e.target.checked,
+                    }))
+                  }
+                />{' '}
+                启用自定义提醒（指定代码须在本次扫描股票列表中）
+              </label>
+              <button
+                className="secondary"
+                onClick={() => data.forEach((d) => logSignal(d, strategy))}
+              >
+                检查当前已加载数据
+              </button>
             </section>
             <EmailSettings alerts={alerts} />
             <div className="grid2">

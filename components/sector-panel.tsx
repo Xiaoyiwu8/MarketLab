@@ -58,7 +58,7 @@ export default function SectorPanel({
       <div className="sectionTitle">
         <div>
           <h2>近期强势板块 · 热门观察前三</h2>
-          <small>在6个预设板块中按近5个共同交易日价格涨幅排序</small>
+          <small>在8个预设板块中按近5个共同交易日价格涨幅排序</small>
         </div>
         <button
           className="secondary"

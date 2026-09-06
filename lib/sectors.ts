@@ -11,6 +11,8 @@ export const sectors = [
   { name: '石油与天然气开采', symbols: ['XOP'], note: '油气勘探生产ETF代理' },
   { name: '金融', symbols: ['XLF'], note: '金融ETF代理' },
   { name: '公用事业', symbols: ['XLU'], note: '公用事业ETF代理' },
+  { name: 'AI主题', symbols: ['AIQ'], note: '人工智能与大数据主题ETF代理' },
+  { name: '软件', symbols: ['IGV'], note: '软件行业ETF代理' },
 ];
 export function rankSectors(data: Series[], now = new Date()) {
   const usable = data

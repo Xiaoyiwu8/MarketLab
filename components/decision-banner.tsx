@@ -6,13 +6,21 @@ const price = (n: number) => '$' + n.toFixed(2);
 export default function DecisionBanner({
   series,
   onDetails,
+  riskBlock = '',
 }: {
   series: Series;
   onDetails: () => void;
+  riskBlock?: string;
 }) {
   const g = tradeGuidance(series);
   const valid = !!g?.eligible;
-  const entry = !valid ? '暂时观察' : g.buy ? '可考虑买入' : '暂时观察';
+  const entry = riskBlock
+    ? '暂停新仓'
+    : !valid
+      ? '暂时观察'
+      : g.buy
+        ? '可考虑买入'
+        : '暂时观察';
   const holding = !valid
     ? '暂不判断'
     : g.sell
@@ -37,19 +45,32 @@ export default function DecisionBanner({
       <div className="decisionGrid">
         <article className="decisionCard">
           <small>还没买入 · 空仓</small>
-          <h3 style={{ color: valid && g.buy ? '#54d6a0' : '#e8bb66' }}>
+          <h3
+            style={{
+              color: valid && g.buy && !riskBlock ? '#54d6a0' : '#e8bb66',
+            }}
+          >
             {entry}
           </h3>
+          {riskBlock && (
+            <p role="status">
+              <b>风控优先：{riskBlock}。</b>{' '}
+              下方技术条件即使满足，也先不新开仓。账户参数在“首页 ·
+              大盘与风控”中的风控计算器调整。
+            </p>
+          )}
           <p>
             {!g
               ? '完整日线不足61根，先加载更多历史行情。'
               : !valid
                 ? g.reason
-                : g.buy
-                  ? '买入筛选条件全部满足，可考虑分批建立仓位；成交前重新核对价格与风险收益。'
-                  : g.sell
-                    ? '趋势出现退出信号，暂不新开多仓。'
-                    : '买入条件未全部满足，等待量价确认。'}
+                : riskBlock
+                  ? '先解除上方风控阻断，再评估技术买入条件。'
+                  : g.buy
+                    ? '买入筛选条件全部满足，可考虑分批建立仓位；成交前重新核对价格与风险收益。'
+                    : g.sell
+                      ? '趋势出现退出信号，暂不新开多仓。'
+                      : '买入条件未全部满足，等待量价确认。'}
           </p>
           {valid && g && (
             <>
@@ -65,7 +86,7 @@ export default function DecisionBanner({
               </p>
               <p className="fineprint">
                 {g.buy
-                  ? '全部条件已满足。'
+                  ? '技术筛选条件已满足（仍须通过风控）。'
                   : '尚未满足：' +
                     g.checks
                       .filter((c) => !c.pass)
