@@ -138,3 +138,33 @@ node --experimental-strip-types scripts/backtest.mjs GOOGL.csv GOOGL trend resul
 ## 震荡价格中枢
 新增首页面板：前20/40/60日高低箱体、收盘中位数中枢、底部和顶部20%观察带、当前区间位置、独立震荡筛选条件、下沿反弹观察及上沿止盈观察。最新日不参与区间构建，突破即停止区间操作提示。单边趋势、样本不足和过期演示数据不生成区间入场提示。属于滚动箱体统计，非缠论中枢或逐笔成交密集区，尚未完整回测，不覆盖已有风控。
 
+
+## 独立项目目录（2026-09-06）
+
+固定目录：`C:\Users\wuxiaoyi\Documents\Codex\Projects\MarketLab`。
+保留原项目完整 Git 历史，新增独立整理提交。线上地址：https://equity-options-lab-wxy.yeetmayas.chatgpt.site/
+
+### 本地启动
+
+安装 Node.js 22.13 或更新版本，在此目录执行：
+
+```sh
+npm ci
+npm run dev
+```
+
+使用终端输出的本地地址访问。验证命令：`npm test`、`npm run typecheck`、`npm run build`。
+生产构建后可执行 `npm start` 通过 Wrangler 本地运行。
+保留 `.openai/hosting.json` 和 Vite 配置，项目沿用 vinext / Cloudflare / Sites 技术栈。
+
+### 文件与数据
+
+- app、components、hooks、lib、public：应用代码及资源。
+- scripts、tests：命令行工具和测试。
+- data/examples/GOOGL-public.csv：已有的公共行情样本，非实时数据。
+- data/examples/GOOGL-回测验证.json：此前导出的回测验证结果。
+- package-lock.json：依赖锁定文件，用 npm ci 恢复依赖。
+- node_modules、构建产物、缓存可重新生成，不纳入迁移或 Git。
+
+模拟账户、宏观事件和利率概率记录保存在原站点的浏览器 localStorage 中，未包含在此仓库；模拟账户可在原站点导出 JSON 另行备份。本地地址不会自动共享原站点的浏览器记录。
+.env 文件应仅本地保存，不提交 API 密钥。当前未配置 GitHub / Gitee 远程仓库。
