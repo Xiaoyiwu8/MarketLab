@@ -22,6 +22,7 @@ import DataCenter, { StockResearch } from './data-center';
 import NewsPanel from './news-panel';
 import VolumePanel from './volume-panel';
 import TradeGuidancePanel from './trade-guidance-panel';
+import DecisionBanner from './decision-banner';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -787,6 +788,7 @@ function Workspace({
           {message}
         </div>
       )}
+      <DecisionBanner series={current} onDetails={() => setTab('guidance')} />
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
         <TabsList
           className="tabbar"

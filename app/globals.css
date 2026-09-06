@@ -230,6 +230,51 @@ label {
 .tabbar {
   margin-bottom: 22px;
 }
+.decisionBanner {
+  border: 2px solid #54d6a0;
+  border-radius: 16px;
+  padding: 24px;
+  margin: 0 0 26px;
+  background: #10252b;
+}
+.decisionBanner h2 {
+  font-size: 28px;
+  margin: 6px 0;
+}
+.decisionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.decisionCard {
+  padding: 22px;
+  border: 1px solid #38535b;
+  border-radius: 12px;
+  background: #101e2b;
+}
+.decisionCard h3 {
+  font-size: 34px;
+  margin: 10px 0 14px;
+  line-height: 1.25;
+}
+.decisionCard h4 {
+  margin: 20px 0 8px;
+}
+.decisionCard p {
+  line-height: 1.7;
+}
+@media (max-width: 700px) {
+  .decisionGrid {
+    grid-template-columns: 1fr;
+  }
+  .decisionBanner {
+    padding: 16px;
+  }
+  .decisionBanner .sectionTitle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
 .message {
   margin: 12px 0;
   padding: 12px;
