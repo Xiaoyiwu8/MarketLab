@@ -160,33 +160,56 @@ export function indicators(b: Bar[]) {
     };
   });
 }
+export type StrategyParams = {
+  fast: number;
+  slow: number;
+  rsiBuy: number;
+  rsiSell: number;
+  breakout: number;
+  exit: number;
+  volumeRatio: number;
+};
+export const defaultParams: StrategyParams = {
+  fast: 20,
+  slow: 50,
+  rsiBuy: 30,
+  rsiSell: 60,
+  breakout: 20,
+  exit: 10,
+  volumeRatio: 1.2,
+};
 export function action(
   b: ReturnType<typeof indicators>,
   i: number,
   strategy: Strategy,
+  params: StrategyParams = defaultParams,
 ): 'BUY' | 'SELL' | 'HOLD' {
-  if (i < 50) return 'HOLD';
+  if (i < Math.max(50, params.slow, params.breakout, params.exit))
+    return 'HOLD';
   const x = b[i];
+  const fast = mean(b.slice(i - params.fast + 1, i + 1).map((x) => x.close)),
+    slow = mean(b.slice(i - params.slow + 1, i + 1).map((x) => x.close));
   switch (strategy) {
     case 'trend':
-      return x.ma20! > x.ma50! ? 'BUY' : 'SELL';
+      return fast > slow ? 'BUY' : 'SELL';
     case 'reversion':
-      return x.rsi! < 30
+      return x.rsi! < params.rsiBuy
         ? 'BUY'
-        : x.rsi! > 60 || x.close > x.ma20!
+        : x.rsi! > params.rsiSell || x.close > fast
           ? 'SELL'
           : 'HOLD';
     case 'breakout':
-      return x.close > Math.max(...b.slice(i - 20, i).map((x) => x.high))
+      return x.close >
+        Math.max(...b.slice(i - params.breakout, i).map((x) => x.high))
         ? 'BUY'
-        : x.close < Math.min(...b.slice(i - 10, i).map((x) => x.low))
+        : x.close < Math.min(...b.slice(i - params.exit, i).map((x) => x.low))
           ? 'SELL'
           : 'HOLD';
     case 'factor': {
       const score =
-        Number(x.close > x.ma50!) +
+        Number(x.close > slow) +
         Number(x.close > b[i - 20].close) +
-        Number(x.volumeRatio! > 1.2);
+        Number(x.volumeRatio! > params.volumeRatio);
       return score === 3 ? 'BUY' : score <= 1 ? 'SELL' : 'HOLD';
     }
   }
@@ -210,7 +233,34 @@ export type Fill = {
   reason: string;
   pnl?: number;
 };
-export function backtest(raw: Bar[], strategy: Strategy, cfg: BacktestConfig) {
+export function backtest(
+  raw: Bar[],
+  strategy: Strategy,
+  cfg: BacktestConfig,
+  params: StrategyParams = defaultParams,
+) {
+  if (
+    !(strategy in strategies) ||
+    ![cfg.start, cfg.end].every(
+      (s) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(s) &&
+        Number.isFinite(Date.parse(s)) &&
+        new Date(s).toISOString().slice(0, 10) === s,
+    )
+  )
+    throw Error('策略或日期无效');
+  if (
+    !Object.values(params).every(Number.isFinite) ||
+    ![params.fast, params.slow, params.breakout, params.exit].every(
+      (x) => Number.isInteger(x) && x >= 2 && x <= 500,
+    ) ||
+    params.fast >= params.slow ||
+    params.rsiBuy < 1 ||
+    params.rsiSell > 99 ||
+    params.rsiBuy >= params.rsiSell ||
+    params.volumeRatio <= 0
+  )
+    throw Error('策略参数无效：均线2–500日且快线小于慢线，RSI阈值须升序。');
   if (
     ![
       cfg.initial,
@@ -244,7 +294,11 @@ export function backtest(raw: Bar[], strategy: Strategy, cfg: BacktestConfig) {
   const fills: Fill[] = [],
     curve: { date: string; equity: number; benchmark: number }[] = [];
   let base = 0;
-  for (let i = 50; i < b.length; i++) {
+  for (
+    let i = Math.max(50, params.slow, params.breakout, params.exit);
+    i < b.length;
+    i++
+  ) {
     const x = b[i];
     if (x.date < cfg.start || x.date > cfg.end) continue;
     if (!base) base = x.open;
@@ -292,7 +346,7 @@ export function backtest(raw: Bar[], strategy: Strategy, cfg: BacktestConfig) {
       equity,
       benchmark: (cfg.initial * x.close) / base,
     });
-    pending = action(b, i, strategy);
+    pending = action(b, i, strategy, params);
   }
   if (curve.length < 2)
     throw Error('有效回测区间不足；需要至少50根预热日线及2个回测交易日。');
@@ -309,7 +363,56 @@ export function backtest(raw: Bar[], strategy: Strategy, cfg: BacktestConfig) {
     dd = Math.max(dd, 1 - x.equity / high);
   }
   const total = curve.at(-1)!.equity / cfg.initial - 1;
+  const entryBar = b.find((x) => x.date === curve[0].date)!;
+  const benchmarkPrice = entryBar.open * (1 + cfg.slippageBps / 10000),
+    benchmarkQty = Math.floor(
+      (cfg.initial * cfg.allocation) /
+        (benchmarkPrice * (1 + cfg.feeBps / 10000)),
+    ),
+    benchmarkCash =
+      cfg.initial - benchmarkQty * benchmarkPrice * (1 + cfg.feeBps / 10000);
+  const matchedBenchmark = curve.map((x) => ({
+    date: x.date,
+    equity:
+      benchmarkCash + benchmarkQty * b.find((v) => v.date === x.date)!.close,
+  }));
+  const journal: {
+    entryDate: string;
+    exitDate: string;
+    qty: number;
+    entryPrice: number;
+    exitPrice: number;
+    fees: number;
+    pnl: number;
+    returnPct: number;
+  }[] = [];
+  let entry: Fill | undefined;
+  for (const f of fills) {
+    if (f.side === 'BUY') entry = f;
+    else if (entry) {
+      journal.push({
+        entryDate: entry.date,
+        exitDate: f.date,
+        qty: f.qty,
+        entryPrice: entry.price,
+        exitPrice: f.price,
+        fees: entry.fee + f.fee,
+        pnl: f.pnl!,
+        returnPct: f.pnl! / (entry.price * entry.qty + entry.fee),
+      });
+      entry = undefined;
+    }
+  }
   return {
+    engine: 'Market Lab Event Engine 2.0',
+    params: { ...params },
+    config: { ...cfg },
+    matchedBenchmark,
+    journal,
+    actualStart: curve[0].date,
+    actualEnd: curve.at(-1)!.date,
+    totalFees: fills.reduce((s, f) => s + f.fee, 0),
+    barsUsed: curve.length,
     curve,
     fills,
     total,

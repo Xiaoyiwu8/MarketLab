@@ -76,3 +76,32 @@ npm run build
 
 研究结果用于检验假设，回测与理论估值不保证未来收益。
 
+
+## V2 更新（2026-09-06）
+
+默认打开“数据与回测中心 V2”，原有股票分析、期权策略和模拟账户保留。
+
+- 统一历史下载：Yahoo Finance、Polygon / Massive、Alpha Vantage，指定开始/结束日期和价格调整口径；腾讯公共延迟行情作为无需密钥的选项。
+- 独立报价轮询：15秒、60秒、5分钟、15分钟可选。腾讯仅取最新报价，Yahoo只取当日摘要，Polygon取last-trade，Alpha取GLOBAL_QUOTE，不重复下载历史。轮询错误暂停，不伪造实时数据。
+- Polygon / Massive需要自有API Key；Alpha完整/复权历史、延迟/实时报价受套餐限制。这里完成了接口实现和模拟响应测试，因没有用户授权密钥，没有声称付费数据端到端验证成功。
+- CSV支持多文件、引号、千位分隔和Adj Close。导入/下载生成数据SHA-256指纹，显示实际区间、行数、复权口径，支持原始清洗数据CSV导出。
+- 自研事件驱动回测引擎2.0：可设置快慢均线、RSI阈值、突破窗口、量比门槛；支持多股×四策略批量实验。每只股票为独立账户，不是组合回测。
+- 使用相同仓位、整股和成本的买入持有基准；输出实际日期、费用、完整往返交易、期末未平仓持仓及原有绩效指标。
+- 时间留出检验：按用户比例划分末段，用固定参数从空仓开始评估；少于20根日线时不报告样本外结果。这不是自动调参或滚动walk-forward优化。
+- 完整回测导出包括输入数据、参数、来源、数据指纹、每日权益、成交和实验结果。可通过独立命令行复现，不依赖网页界面。
+- Stock Analysis：自动读取公司概况、TTM与多年收入利润、资产负债、经营现金流/资本开支/自由现金流和历史估值；各表保留独立期间列与单位。显示源页面更新时间及TTM结束时间。指标解读基于已读取数字，历史因子回测不使用当前快照。
+- 新闻：优先读取Stock Analysis公开新闻索引，Google News RSS为备用；新闻标题链接供核实，不将媒体观点直接当成交易信号。当前开发环境Google RSS超时，Stock Analysis新闻成功返回10条。
+
+### 验证与复现
+
+18项单元/模拟响应测试通过；GOOGL公共历史、最新报价、Stock Analysis财务和新闻均实际调用成功。Yahoo在此环境返回403，界面明确提示；未伪装为成功。授权Polygon/Alpha实测需用户配置密钥。未进行浏览器UI自动测试。
+
+```sh
+npm test
+npm run typecheck
+node --experimental-strip-types scripts/backtest.mjs GOOGL.csv GOOGL trend result.json 2023-01-01 2026-09-04
+```
+
+`outputs/GOOGL-回测验证.json`（交付目录）是公共真实历史数据经CLI运行的验证样例，不是未来收益预测。命令行默认参数在输出中完整保留。
+
+来源文档：[Alpha Vantage](https://www.alphavantage.co/documentation/)、[Polygon / Massive](https://massive.com/docs/rest/stocks/overview)、[Stock Analysis 数据来源](https://stockanalysis.com/data-sources/)。

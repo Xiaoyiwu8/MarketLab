@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import EmailSettings from './email-settings';
+import DataCenter, { StockResearch } from './data-center';
+import NewsPanel from './news-panel';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -208,7 +210,7 @@ function Workspace({
     [secret, setSecret] = useState(''),
     [data, setData] = useState<Series[]>(initialData),
     [selected, setSelected] = useState(initialData[0].symbol),
-    [tab, setTab] = useState('analysis'),
+    [tab, setTab] = useState('research'),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [strategy, setStrategy] = useState<Strategy>('trend'),
@@ -257,7 +259,11 @@ function Workspace({
             ? 'csv'
             : current.source.startsWith('腾讯')
               ? 'tencent'
-              : 'yahoo';
+              : current.source.startsWith('Polygon')
+                ? 'polygon'
+                : current.source.startsWith('Alpha Vantage')
+                  ? 'alpha'
+                  : 'yahoo';
   const optValid =
     [strike, width, days, iv, rate, dividend].every(Number.isFinite) &&
     strike > width &&
@@ -782,6 +788,7 @@ function Workspace({
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
         <TabsList className="tabbar" style={{ height: 48, width: '100%' }}>
           {[
+            ['research', '数据与回测中心 V2'],
             ['analysis', '01 股票分析'],
             ['backtest', '02 策略回测'],
             ['options', '03 期权策略'],
@@ -793,7 +800,40 @@ function Workspace({
             </TabsTrigger>
           ))}
         </TabsList>
+        <TabsContent value="research" keepMounted>
+          <DataCenter
+            data={data}
+            onQuotes={(quotes, source) =>
+              setData((old) =>
+                old.map((s) => {
+                  const id = s.source.startsWith('腾讯')
+                    ? 'tencent'
+                    : s.source.startsWith('Yahoo')
+                      ? 'yahoo'
+                      : s.source.startsWith('Polygon')
+                        ? 'polygon'
+                        : s.source.startsWith('Alpha Vantage')
+                          ? 'alpha'
+                          : '';
+                  const q = quotes.find((v) => v.symbol === s.symbol)?.quote;
+                  return id === source && q ? { ...s, quote: q } : s;
+                }),
+              )
+            }
+            onData={(next) => {
+              setData(next);
+              setSelected(next[0].symbol);
+              setResult(null);
+              setAuto(false);
+              setMessage(
+                '数据中心已更新当前分析数据；可切换股票分析或直接运行批量回测。',
+              );
+            }}
+          />
+        </TabsContent>
         <TabsContent value="analysis">
+          <StockResearch symbol={current.symbol} />
+          <NewsPanel symbol={current.symbol} />
           <Metrics
             items={[
               [

@@ -1,5 +1,5 @@
 import type { Bar } from './engine';
-export async function tencent(symbol: string) {
+export async function tencent(symbol: string, quoteOnly = false) {
   async function get(id: string, count: number) {
     const r = await fetch(
       `https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param=${encodeURIComponent(id)},day,,,${count},qfq`,
@@ -21,7 +21,7 @@ export async function tencent(symbol: string) {
     ).test(ticker)
   )
     throw Error('该代码未找到可验证的美股市场映射，请尝试其他来源。');
-  const v = await get('us' + ticker, 1000),
+  const v = quoteOnly ? null : await get('us' + ticker, 1000),
     rows: Bar[] = (v?.qfqday ?? []).map((b: any[]) => ({
       date: String(b[0]),
       open: Number(b[1]),
@@ -30,7 +30,7 @@ export async function tencent(symbol: string) {
       low: Number(b[4]),
       volume: Number(b[5]),
     }));
-  if (!rows.length) throw Error('未返回前复权历史日线');
+  if (!quoteOnly && !rows.length) throw Error('未返回前复权历史日线');
   let quote;
   if (
     Number(qt[3]) > 0 &&

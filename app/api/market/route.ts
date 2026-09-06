@@ -70,7 +70,9 @@ export async function POST(req: Request) {
             adjustment = '',
             warnings: string[] = [];
           if (provider === 'tencent') {
-            const t = await tencent(symbol);
+            const t = await tencent(symbol, mode === 'quote');
+            if (mode === 'quote')
+              return { symbol, quote: t.quote, warnings: [] };
             rows = t.rows;
             quote = t.quote;
             source = '腾讯公共美股行情（延迟）';
