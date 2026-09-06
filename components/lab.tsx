@@ -27,6 +27,7 @@ import SectorPanel from './sector-panel';
 import ReviewDashboard from './review-dashboard';
 import SensitivityPanel from './sensitivity-panel';
 import ShortPanel from './short-panel';
+import ExitPlan from './exit-plan';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -921,6 +922,7 @@ function Workspace({
           }
         />
         <ShortPanel series={current} />
+        <ExitPlan series={current} />
         <SectorPanel
           onAnalyze={(symbols) => {
             setInput(symbols);
