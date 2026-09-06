@@ -76,7 +76,7 @@ export async function POST(req: Request) {
             rows = t.rows;
             quote = t.quote;
             source = '腾讯公共美股行情（延迟）';
-            adjustment = '行情源前复权 qfqday；最多1000根日线';
+            adjustment = t.adjustment;
             warnings.push(
               '公开接口无服务承诺；行情可能延迟，不用于判断真实可成交价格。',
             );

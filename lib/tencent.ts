@@ -25,16 +25,20 @@ export async function tencent(symbol: string, quoteOnly = false) {
         ? '未找到 APPL 的美股行情。若你想查询苹果公司，正确代码是 AAPL（不是 APPL）。'
         : `未找到 ${symbol} 的可验证美股行情，请核对代码、上市市场或更换来源。`,
     );
-  const v = quoteOnly ? null : await get('us' + ticker, 1000),
-    rows: Bar[] = (v?.qfqday ?? []).map((b: any[]) => ({
+  const v = quoteOnly ? null : await get('us' + ticker, 1000);
+  const adjusted = Array.isArray(v?.qfqday) && v.qfqday.length > 0;
+  const rows: Bar[] = (adjusted ? v.qfqday : (v?.day ?? [])).map(
+    (b: any[]) => ({
       date: String(b[0]),
       open: Number(b[1]),
       close: Number(b[2]),
       high: Number(b[3]),
       low: Number(b[4]),
       volume: Number(b[5]),
-    }));
-  if (!quoteOnly && !rows.length) throw Error('未返回前复权历史日线');
+    }),
+  );
+  if (!quoteOnly && !rows.length)
+    throw Error('行情源未返回有效历史日线，请稍后重试或更换来源。');
   let quote;
   if (
     Number(qt[3]) > 0 &&
@@ -53,5 +57,11 @@ export async function tencent(symbol: string, quoteOnly = false) {
       time: new Date(qt[30].replace(' ', 'T') + zone).toISOString(),
     };
   }
-  return { rows, quote };
+  return {
+    rows,
+    quote,
+    adjustment: adjusted
+      ? '行情源前复权 qfqday；最多1000根日线'
+      : '行情源 day 日线；未确认复权，回测前需核对拆股与分红；最多1000根日线',
+  };
 }

@@ -23,6 +23,7 @@ import NewsPanel from './news-panel';
 import VolumePanel from './volume-panel';
 import TradeGuidancePanel from './trade-guidance-panel';
 import DecisionBanner from './decision-banner';
+import SectorPanel from './sector-panel';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -839,6 +840,12 @@ function Workspace({
       )}
       <div hidden={!!failedQuery || busy}>
         <DecisionBanner series={current} onDetails={() => setTab('guidance')} />
+        <SectorPanel
+          onAnalyze={(symbols) => {
+            setInput(symbols);
+            void load(symbols);
+          }}
+        />
         <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
           <TabsList
             className="tabbar"
