@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Series } from '@/lib/engine';
 import { volumeSummary } from '@/lib/volume';
 import {
+  bullBear,
   trend,
   weeks,
   relative,
@@ -108,6 +109,7 @@ export default function ReviewDashboard({
       b,
       last,
       trend: trend(b, 50),
+      regime: bullBear(b),
       five: b.length >= 6 ? b.at(-1)!.close / b.at(-6)!.close - 1 : null,
       valid: !stale && b.length >= 55,
     };
@@ -115,6 +117,15 @@ export default function ReviewDashboard({
   const all =
     macro.every((m) => m.valid) &&
     new Set(macro.map((m) => m.last!.date)).size === 1;
+  const marketRegime =
+    !all || macro.some((m) => m.regime.score === null)
+      ? '数据不足'
+      : macro.filter((m) => m.regime.label === '牛市倾向').length >= 3
+        ? '牛市倾向'
+        : macro.filter((m) => m.regime.label === '熊市倾向').length >= 3
+          ? '熊市倾向'
+          : '震荡 / 牛熊过渡';
+  const individualRegime = bullBear(bars);
   const up = macro.filter((m) => m.valid && m.trend.label === '上升').length,
     down = macro.filter((m) => m.valid && m.trend.label === '下降').length;
   const marketState = !all
@@ -131,7 +142,10 @@ export default function ReviewDashboard({
     [dd, setDd] = useState(0),
     [limit, setLimit] = useState(10),
     [stop, setStop] = useState(g?.stop ?? 0);
-  useEffect(() => setStop(tradeGuidance(series)?.stop ?? 0), [series.symbol, series.source, series.asOf]);
+  useEffect(
+    () => setStop(tradeGuidance(series)?.stop ?? 0),
+    [series.symbol, series.source, series.asOf],
+  );
   const plan = positionSize(
     capital,
     bars.at(-1)?.close ?? 0,
@@ -166,7 +180,9 @@ export default function ReviewDashboard({
     <>
       <section className="panel">
         <div className="sectionTitle">
-          <h2>大盘趋势与风险偏好：{marketState}</h2>
+          <h2>
+            大盘牛熊：{marketRegime} · 近期趋势：{marketState}
+          </h2>
           <button
             className="secondary"
             onClick={() => void refresh()}
@@ -182,7 +198,12 @@ export default function ReviewDashboard({
               <small>
                 {m.name} · {m.symbol} ETF代理
               </small>
-              <strong>{m.valid ? m.trend.label : '暂无有效判断'}</strong>
+              <strong style={{ fontSize: 20 }}>
+                {m.valid ? m.regime.label : '暂无有效判断'}
+              </strong>
+              <small>
+                多头条件 {m.regime.score ?? '—'}/5 · MA50 {m.trend.label}
+              </small>
               <small>
                 5日 {f(m.five === null ? null : m.five * 100)}% ·{' '}
                 {m.last?.date ?? '缺失'}
@@ -191,7 +212,7 @@ export default function ReviewDashboard({
           ))}
         </div>
         <p>
-          规则：4只代理ETF中至少3只处于MA50上升趋势为偏强，至少3只下降为偏弱，其余为分化。该指标是价格趋势代理，不是全市场情绪或期权PCR。
+          牛熊规则：4只代理ETF至少3只判为牛市倾向或熊市倾向，才给出同向大盘指示，否则为过渡。近期趋势另按MA50判断。这是技术状态分类，不是上涨概率、全市场情绪或期权PCR。
         </p>
         <details>
           <summary>走势与数据口径</summary>
@@ -230,6 +251,24 @@ export default function ReviewDashboard({
       </section>
       <section className="panel">
         <h2>{series.symbol} · 个股趋势与量价体检</h2>
+        <h3>
+          个股牛熊：{g?.eligible ? individualRegime.label : '仅供历史观察'} ·
+          多头条件 {individualRegime.score ?? '—'}/5
+        </h3>
+        <details>
+          <summary>牛熊判定依据与失效条件</summary>
+          {individualRegime.checks.map((c) => (
+            <p key={c.label}>
+              {c.pass ? '✓' : '○'} {c.label}
+            </p>
+          ))}
+          <p>
+            MA200上升且多头条件≥4项：牛市倾向；MA200下降且多头条件≤1项：熊市倾向。长期下降但≥3项转强：反弹观察；长期上升但≤2项：回调观察；其余为震荡过渡。MA200方向或评分离开对应阈值时，该状态失效。至少需要205根完整日线，状态按日线更新，不是官方牛熊定义或未来收益预测。
+          </p>
+          <p>
+            不以此替代入场信号：牛市也可能过热，熊市反弹也可能失败。交易仍须通过首页风控和买入条件。
+          </p>
+        </details>
         <p className="fineprint">
           {series.source} · {series.adjustment} · {bars.at(-1)?.date}
           。日线距今超过7天或演示数据只作历史观察。

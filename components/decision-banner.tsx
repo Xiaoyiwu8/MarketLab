@@ -1,6 +1,7 @@
 'use client';
 import type { Series } from '@/lib/engine';
 import { tradeGuidance } from '@/lib/trade-guidance';
+import { bullBear } from '@/lib/review';
 const price = (n: number) => '$' + n.toFixed(2);
 
 export default function DecisionBanner({
@@ -14,6 +15,7 @@ export default function DecisionBanner({
 }) {
   const g = tradeGuidance(series);
   const valid = !!g?.eligible;
+  const regime = g ? bullBear(g.bars) : null;
   const entry = riskBlock
     ? '暂停新仓'
     : !valid
@@ -37,6 +39,14 @@ export default function DecisionBanner({
         <div>
           <small>先看结论 · {series.symbol}</small>
           <h2>现在该怎么做？</h2>
+          <p>
+            <b>
+              个股牛熊：{valid ? (regime?.label ?? '数据不足') : '暂无有效判断'}
+            </b>
+            {valid && regime?.score !== null
+              ? ` · 多头条件 ${regime?.score}/5（不是上涨概率）`
+              : ''}
+          </p>
         </div>
         <button className="secondary" onClick={onDetails}>
           查看支撑压力与完整依据 →

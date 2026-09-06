@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  bullBear,
   positionSize,
   relative,
   weeks,
@@ -15,6 +16,19 @@ const bar = (date: string, close: number, volume = 100) => ({
   low: close - 1,
   close,
   volume,
+});
+test('bull bear regimes require long-trend agreement and sufficient history', () => {
+  const make = (direction: number) =>
+    Array.from({ length: 230 }, (_, i) =>
+      bar(
+        new Date(Date.UTC(2025, 0, i + 1)).toISOString().slice(0, 10),
+        1000 + (direction * i * i) / 100,
+      ),
+    );
+  assert.equal(bullBear(make(1)).label, '牛市倾向');
+  assert.equal(bullBear(make(-1)).label, '熊市倾向');
+  assert.equal(bullBear(make(0)).label, '震荡过渡');
+  assert.equal(bullBear(make(1).slice(-100)).score, null);
 });
 test('position budget obeys risk, exposure, cash and drawdown guardrails', () => {
   assert.equal(positionSize(10000, 100, 95, 1, 50, 10000, 0, 10)?.shares, 20);

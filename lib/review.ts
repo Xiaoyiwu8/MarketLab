@@ -1,4 +1,34 @@
-import type { Bar } from './engine.ts';
+import { indicators, type Bar } from './engine.ts';
+export function bullBear(b: Bar[]) {
+  if (b.length < 205)
+    return {
+      label: '数据不足',
+      score: null,
+      checks: [] as { label: string; pass: boolean }[],
+    };
+  const i = indicators(b).at(-1)!;
+  const long = trend(b, 200).label;
+  const checks = [20, 60, 200].map((n) => ({
+    label: `MA${n}上升且收盘在均线上方`,
+    pass: trend(b, n).label === '上升',
+  }));
+  checks.push(
+    { label: 'MACD柱为正', pass: i.hist !== null && i.hist > 0 },
+    { label: 'RSI14高于50', pass: i.rsi !== null && i.rsi > 50 },
+  );
+  const score = checks.filter((c) => c.pass).length;
+  const label =
+    long === '上升' && score >= 4
+      ? '牛市倾向'
+      : long === '下降' && score <= 1
+        ? '熊市倾向'
+        : long === '下降' && score >= 3
+          ? '熊市反弹观察'
+          : long === '上升' && score <= 2
+            ? '牛市回调观察'
+            : '震荡过渡';
+  return { label, score, checks };
+}
 export const avg = (a: number[]) => a.reduce((s, n) => s + n, 0) / a.length;
 export function trend(b: Bar[], n: number) {
   if (b.length < n + 5) return { label: '样本不足', ma: null };
