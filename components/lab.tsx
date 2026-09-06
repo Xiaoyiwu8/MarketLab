@@ -20,6 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import EmailSettings from './email-settings';
 import DataCenter, { StockResearch } from './data-center';
 import NewsPanel from './news-panel';
+import VolumePanel from './volume-panel';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -790,6 +791,7 @@ function Workspace({
           {[
             ['research', '数据与回测中心 V2'],
             ['analysis', '01 股票分析'],
+            ['volume', '成交量'],
             ['backtest', '02 策略回测'],
             ['options', '03 期权策略'],
             ['paper', '04 模拟账户'],
@@ -831,7 +833,11 @@ function Workspace({
             }}
           />
         </TabsContent>
+        <TabsContent value="volume">
+          <VolumePanel series={current} />
+        </TabsContent>
         <TabsContent value="analysis">
+          <VolumePanel series={current} />
           <StockResearch symbol={current.symbol} />
           <NewsPanel symbol={current.symbol} />
           <Metrics

@@ -105,3 +105,7 @@ node --experimental-strip-types scripts/backtest.mjs GOOGL.csv GOOGL trend resul
 `outputs/GOOGL-回测验证.json`（交付目录）是公共真实历史数据经CLI运行的验证样例，不是未来收益预测。命令行默认参数在输出中完整保留。
 
 来源文档：[Alpha Vantage](https://www.alphavantage.co/documentation/)、[Polygon / Massive](https://massive.com/docs/rest/stocks/overview)、[Stock Analysis 数据来源](https://stockanalysis.com/data-sources/)。
+
+## 成交量面板
+新增独立的成交量标签页，股票分析页顶部也可查看：最近完整日线成交股数、与前一日的绝对及百分比变化、相对前20日均量、最近5日总量与前5日比较、60日柱状图、20日明细。按纽约日期排除当日可能不完整的日线；零基准与不足样本显示缺失。成交量使用所选行情源口径，IEX不是全美市场成交总量。更新成交量需重新加载历史行情。
+
