@@ -26,6 +26,7 @@ import DecisionBanner from './decision-banner';
 import SectorPanel from './sector-panel';
 import ReviewDashboard from './review-dashboard';
 import SensitivityPanel from './sensitivity-panel';
+import ShortPanel from './short-panel';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -919,6 +920,7 @@ function Workspace({
               : '正在核验大盘与风控'
           }
         />
+        <ShortPanel series={current} />
         <SectorPanel
           onAnalyze={(symbols) => {
             setInput(symbols);
