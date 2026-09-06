@@ -28,6 +28,7 @@ import ReviewDashboard from './review-dashboard';
 import SensitivityPanel from './sensitivity-panel';
 import ShortPanel from './short-panel';
 import ExitPlan from './exit-plan';
+import RangeCenterPanel from './range-center-panel';
 import EventRadar from './event-radar';
 import RateProbability from './rate-probability';
 import { importCsv } from '@/lib/csv';
@@ -924,6 +925,7 @@ function Workspace({
           }
         />
         <ShortPanel series={current} />
+        <RangeCenterPanel series={current} />
         <EventRadar />
         <RateProbability />
         <ExitPlan series={current} />
