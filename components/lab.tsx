@@ -21,6 +21,7 @@ import EmailSettings from './email-settings';
 import DataCenter, { StockResearch } from './data-center';
 import NewsPanel from './news-panel';
 import VolumePanel from './volume-panel';
+import TradeGuidancePanel from './trade-guidance-panel';
 import { importCsv } from '@/lib/csv';
 import { Candles, LineChart } from './lab-charts';
 import {
@@ -787,11 +788,20 @@ function Workspace({
         </div>
       )}
       <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
-        <TabsList className="tabbar" style={{ height: 48, width: '100%' }}>
+        <TabsList
+          className="tabbar"
+          style={{
+            height: 'auto',
+            minHeight: 48,
+            width: '100%',
+            flexWrap: 'wrap',
+          }}
+        >
           {[
             ['research', '数据与回测中心 V2'],
             ['analysis', '01 股票分析'],
             ['volume', '成交量'],
+            ['guidance', '支撑压力 / 买卖提示'],
             ['backtest', '02 策略回测'],
             ['options', '03 期权策略'],
             ['paper', '04 模拟账户'],
@@ -833,10 +843,14 @@ function Workspace({
             }}
           />
         </TabsContent>
+        <TabsContent value="guidance">
+          <TradeGuidancePanel series={current} />
+        </TabsContent>
         <TabsContent value="volume">
           <VolumePanel series={current} />
         </TabsContent>
         <TabsContent value="analysis">
+          <TradeGuidancePanel series={current} />
           <VolumePanel series={current} />
           <StockResearch symbol={current.symbol} />
           <NewsPanel symbol={current.symbol} />
