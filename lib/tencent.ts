@@ -20,7 +20,11 @@ export async function tencent(symbol: string, quoteOnly = false) {
         '\\.(OQ|N|AM|PK|OB)$',
     ).test(ticker)
   )
-    throw Error('该代码未找到可验证的美股市场映射，请尝试其他来源。');
+    throw Error(
+      symbol === 'APPL'
+        ? '未找到 APPL 的美股行情。若你想查询苹果公司，正确代码是 AAPL（不是 APPL）。'
+        : `未找到 ${symbol} 的可验证美股行情，请核对代码、上市市场或更换来源。`,
+    );
   const v = quoteOnly ? null : await get('us' + ticker, 1000),
     rows: Bar[] = (v?.qfqday ?? []).map((b: any[]) => ({
       date: String(b[0]),

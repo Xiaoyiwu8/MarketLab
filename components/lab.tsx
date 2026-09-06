@@ -216,6 +216,7 @@ function Workspace({
     [tab, setTab] = useState('research'),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
+    [failedQuery, setFailedQuery] = useState(''),
     [strategy, setStrategy] = useState<Strategy>('trend'),
     [config, setConfig] = useState<BacktestConfig>(defaults),
     [result, setResult] = useState<{
@@ -427,6 +428,7 @@ function Workspace({
     locked.current = true;
     setBusy(true);
     setMessage('');
+    setFailedQuery('');
     try {
       const symbols = [
         ...new Set(
@@ -478,7 +480,9 @@ function Workspace({
         source: x.source,
       }));
     } catch (e) {
-      setMessage((e as Error).message + '；保留原有结果，未自动切换数据源。');
+      setFailedQuery(symbolText.trim().toUpperCase() || '空代码');
+      setAuto(false);
+      setMessage((e as Error).message);
     } finally {
       locked.current = false;
       setBusy(false);
@@ -763,6 +767,8 @@ function Workspace({
           </div>
         )}
         <div className="notice">
+          {failedQuery &&
+            `上次成功的旧数据（不是 ${failedQuery} 的结果）：${current.symbol} · `}
           {current.source} · 日线截至 {current.asOf} · {current.adjustment}
           {current.quote
             ? ` · 最新参考价时间 ${current.quote.time.replace('T', ' ').slice(0, 19)} UTC`
@@ -788,1017 +794,1084 @@ function Workspace({
           {message}
         </div>
       )}
-      <DecisionBanner series={current} onDetails={() => setTab('guidance')} />
-      <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
-        <TabsList
-          className="tabbar"
-          style={{
-            height: 'auto',
-            minHeight: 48,
-            width: '100%',
-            flexWrap: 'wrap',
-          }}
+      {busy && (
+        <section className="panel" role="status">
+          正在查询 {input.toUpperCase()}，完成后显示对应股票的分析与建议…
+        </section>
+      )}
+      {failedQuery && (
+        <section
+          className="panel"
+          role="alert"
+          style={{ border: '2px solid #f27991' }}
         >
-          {[
-            ['research', '数据与回测中心 V2'],
-            ['analysis', '01 股票分析'],
-            ['volume', '成交量'],
-            ['guidance', '支撑压力 / 买卖提示'],
-            ['backtest', '02 策略回测'],
-            ['options', '03 期权策略'],
-            ['paper', '04 模拟账户'],
-            ['settings', '数据与提醒'],
-          ].map(([id, label]) => (
-            <TabsTrigger key={id} value={id} style={{ padding: '8px 12px' }}>
-              {label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <TabsContent value="research" keepMounted>
-          <DataCenter
-            data={data}
-            onQuotes={(quotes, source) =>
-              setData((old) =>
-                old.map((s) => {
-                  const id = s.source.startsWith('腾讯')
-                    ? 'tencent'
-                    : s.source.startsWith('Yahoo')
-                      ? 'yahoo'
-                      : s.source.startsWith('Polygon')
-                        ? 'polygon'
-                        : s.source.startsWith('Alpha Vantage')
-                          ? 'alpha'
-                          : '';
-                  const q = quotes.find((v) => v.symbol === s.symbol)?.quote;
-                  return id === source && q ? { ...s, quote: q } : s;
-                }),
-              )
-            }
-            onData={(next) => {
-              setData(next);
-              setSelected(next[0].symbol);
-              setResult(null);
-              setAuto(false);
-              setMessage(
-                '数据中心已更新当前分析数据；可切换股票分析或直接运行批量回测。',
-              );
+          <h2>{failedQuery} 查询失败，暂无本次分析</h2>
+          <p>
+            已隐藏旧股票 {current.symbol} 的分析和买卖建议，避免误认成{' '}
+            {failedQuery}。请核对代码后重新查询。
+          </p>
+          <div className="row">
+            {failedQuery.split(/[,，\s]+/).includes('APPL') && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  const corrected = failedQuery.replace(/\bAPPL\b/g, 'AAPL');
+                  setInput(corrected);
+                  void load(corrected);
+                }}
+              >
+                苹果代码是 AAPL · 改正并查询
+              </button>
+            )}
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => {
+                setFailedQuery('');
+                setMessage('');
+                setInput(data.map((s) => s.symbol).join(', '));
+              }}
+            >
+              返回上次成功结果：{current.symbol}
+            </button>
+          </div>
+        </section>
+      )}
+      <div hidden={!!failedQuery || busy}>
+        <DecisionBanner series={current} onDetails={() => setTab('guidance')} />
+        <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
+          <TabsList
+            className="tabbar"
+            style={{
+              height: 'auto',
+              minHeight: 48,
+              width: '100%',
+              flexWrap: 'wrap',
             }}
-          />
-        </TabsContent>
-        <TabsContent value="guidance">
-          <TradeGuidancePanel series={current} />
-        </TabsContent>
-        <TabsContent value="volume">
-          <VolumePanel series={current} />
-        </TabsContent>
-        <TabsContent value="analysis">
-          <TradeGuidancePanel series={current} />
-          <VolumePanel series={current} />
-          <StockResearch symbol={current.symbol} />
-          <NewsPanel symbol={current.symbol} />
-          <Metrics
-            items={[
-              [
-                `${current.symbol} ${mode === 'demo' ? '虚构演示价' : '行情参考价格'}`,
-                '$' + fmt(spot),
-                '最新成交或最后日线',
-              ],
-              [
-                '日线涨跌',
-                pct(last.close / ind.at(-2)!.close - 1),
-                '基于已完成日线',
-              ],
-              [
-                'RSI · 14',
-                fmt(last.rsi),
-                last.rsi! > 70
-                  ? '超买区域'
-                  : last.rsi! < 30
-                    ? '超卖区域'
-                    : '中性区域',
-              ],
-              ['成交量比', fmt(last.volumeRatio) + '×', '相对前20日均量'],
-            ]}
-          />
-          <div className="grid2">
-            <section className="panel">
-              <div className="sectionTitle">
-                <h2>{current.symbol} · 日线行情</h2>
-                <small>最近90个数据日</small>
-              </div>
-              <div className="row">
-                <small style={{ color: '#e8bb66' }}>━ MA20</small>
-                <small style={{ color: '#8da3ff' }}>━ MA50</small>
-                <small>布林带 20 / 2σ · 下方成交量</small>
-              </div>
-              <Candles bars={bars} fills={visibleResult?.result.fills} />
-              <small>
-                B / S 为当前回测的实际模拟成交标记；鼠标悬停蜡烛可读 OHLCV。
-              </small>
-            </section>
-            <section className="panel">
-              <h2>技术解读</h2>
-              <Pick
-                label="信号策略"
-                value={strategy}
-                options={strategies}
-                onChange={(v) => setStrategy(v as Strategy)}
-              />
-              <div className="message">
-                <h3>{signalNames[action(ind, ind.length - 1, strategy)]}</h3>
-                <p>
-                  {last.ma20! > last.ma50!
-                    ? '20日均线高于50日均线，短期趋势强于中期。'
-                    : '20日均线低于50日均线，短期趋势弱于中期。'}
-                </p>
-              </div>
-              <DataTable
-                columns={['指标', '当前值']}
-                rows={[
-                  ['MA20 / MA50', `${fmt(last.ma20)} / ${fmt(last.ma50)}`],
-                  ['MACD / 信号线', `${fmt(last.macd)} / ${fmt(last.signal)}`],
-                  [
-                    '布林带上 / 下轨',
-                    `${fmt(last.upper)} / ${fmt(last.lower)}`,
-                  ],
-                  ['MFI · 14', fmt(last.mfi)],
-                  ['OBV', fmt(last.obv, 0)],
-                ]}
-              />
-              <p className="fineprint">
-                MFI、OBV
-                为量价代理指标，不等于“主力净流入”。美股资金动向需要独立的大单 /
-                逐笔 / 机构持仓数据，本版不伪造主力数据。
-              </p>
-            </section>
-          </div>
-          <section className="panel">
-            <h2>自选股对比</h2>
-            <DataTable
-              columns={[
-                '股票',
-                '日线日期',
-                '收盘价',
-                'RSI14',
-                'MACD柱',
-                '量比',
-                '所选策略条件',
-              ]}
-              rows={data.map((d) => {
-                const a = indicators(d.bars),
-                  x = a.at(-1)!;
-                return [
-                  d.symbol,
-                  d.asOf,
-                  fmt(x.close),
-                  fmt(x.rsi),
-                  fmt(x.hist),
-                  fmt(x.volumeRatio),
-                  signalNames[action(a, a.length - 1, strategy)],
-                ];
-              })}
+          >
+            {[
+              ['research', '数据与回测中心 V2'],
+              ['analysis', '01 股票分析'],
+              ['volume', '成交量'],
+              ['guidance', '支撑压力 / 买卖提示'],
+              ['backtest', '02 策略回测'],
+              ['options', '03 期权策略'],
+              ['paper', '04 模拟账户'],
+              ['settings', '数据与提醒'],
+            ].map(([id, label]) => (
+              <TabsTrigger key={id} value={id} style={{ padding: '8px 12px' }}>
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <TabsContent value="research" keepMounted>
+            <DataCenter
+              data={data}
+              onQuotes={(quotes, source) =>
+                setData((old) =>
+                  old.map((s) => {
+                    const id = s.source.startsWith('腾讯')
+                      ? 'tencent'
+                      : s.source.startsWith('Yahoo')
+                        ? 'yahoo'
+                        : s.source.startsWith('Polygon')
+                          ? 'polygon'
+                          : s.source.startsWith('Alpha Vantage')
+                            ? 'alpha'
+                            : '';
+                    const q = quotes.find((v) => v.symbol === s.symbol)?.quote;
+                    return id === source && q ? { ...s, quote: q } : s;
+                  }),
+                )
+              }
+              onData={(next) => {
+                setData(next);
+                setSelected(next[0].symbol);
+                setResult(null);
+                setAuto(false);
+                setMessage(
+                  '数据中心已更新当前分析数据；可切换股票分析或直接运行批量回测。',
+                );
+              }}
             />
-          </section>
-          <div className="grid2">
-            <section className="panel">
-              <h2>RSI · 14</h2>
-              <LineChart
-                series={[
-                  {
-                    name: 'RSI',
-                    color: '#8da3ff',
-                    values: ind.slice(-90).map((x) => x.rsi ?? 50),
-                  },
-                  {
-                    name: '超买70',
-                    color: '#ff768b',
-                    values: Array(90).fill(70),
-                  },
-                  {
-                    name: '超卖30',
-                    color: '#58dfb0',
-                    values: Array(90).fill(30),
-                  },
-                ]}
-              />
-            </section>
-            <section className="panel">
-              <h2>MACD</h2>
-              <LineChart
-                series={[
-                  {
-                    name: 'MACD',
-                    color: '#58dfb0',
-                    values: ind.slice(-90).map((x) => x.macd ?? 0),
-                  },
-                  {
-                    name: '信号线',
-                    color: '#e8bb66',
-                    values: ind.slice(-90).map((x) => x.signal ?? 0),
-                  },
-                ]}
-                format={(x) => fmt(x, 1)}
-              />
-            </section>
-          </div>
-          {current.warnings.map((w) => (
-            <p className="fineprint" key={w}>
-              {w}
-            </p>
-          ))}
-        </TabsContent>
-        <TabsContent value="backtest">
-          <section className="panel">
-            <div className="sectionTitle">
-              <h2>{current.symbol} · 股票策略回测</h2>
-              <button onClick={run}>运行回测 →</button>
-            </div>
-            <div className="formgrid">
-              <Pick
-                label="策略"
-                value={strategy}
-                options={strategies}
-                onChange={(v) => setStrategy(v as Strategy)}
-              />
-              <Num
-                label="初始资金 USD"
-                value={config.initial}
-                onChange={(v) => setConfig({ ...config, initial: v })}
-                min={100}
-              />
-              <label>
-                开始日期
-                <input
-                  type="date"
-                  value={config.start}
-                  onChange={(e) =>
-                    setConfig({ ...config, start: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                结束日期
-                <input
-                  type="date"
-                  value={config.end}
-                  onChange={(e) =>
-                    setConfig({ ...config, end: e.target.value })
-                  }
-                />
-              </label>
-              <Num
-                label="仓位 %"
-                value={config.allocation * 100}
-                onChange={(v) => setConfig({ ...config, allocation: v / 100 })}
-                max={100}
-                min={1}
-              />
-              <Num
-                label="单边费用 bp"
-                value={config.feeBps}
-                onChange={(v) => setConfig({ ...config, feeBps: v })}
-                max={100}
-              />
-              <Num
-                label="单边滑点 bp"
-                value={config.slippageBps}
-                onChange={(v) => setConfig({ ...config, slippageBps: v })}
-                max={100}
-              />
-              <Num
-                label="止损 %"
-                value={config.stop * 100}
-                onChange={(v) => setConfig({ ...config, stop: v / 100 })}
-                min={1}
-                max={99}
-              />
-              <Num
-                label="回撤熔断 %"
-                value={config.maxDrawdown * 100}
-                onChange={(v) => setConfig({ ...config, maxDrawdown: v / 100 })}
-                min={1}
-                max={99}
-              />
-            </div>
-            <p className="fineprint">
-              固定50根日线预热；当日收盘信号于下一可用交易日开盘执行。只做多、不加杠杆；止损遇跳空按较差开盘价。回撤熔断于收盘检测、下一日开盘清仓。夏普无风险收益设为0，按252日年化。基准为100%买入持有，未计费用。量价多因子不是基本面因子模型。
-            </p>
-          </section>
-          {visibleResult ? (
-            <>
-              <p className="fineprint">
-                结果参数快照：{strategies[visibleResult.strategy]} ·{' '}
-                {visibleResult.config.start} 至 {visibleResult.config.end} ·
-                仓位 {pct(visibleResult.config.allocation)}
-                ；修改参数后需重新运行。
-              </p>
-              <Metrics
-                items={[
-                  ['总收益', pct(visibleResult.result.total)],
-                  ['年化收益', pct(visibleResult.result.annual)],
-                  ['夏普比率', fmt(visibleResult.result.sharpe)],
-                  ['最大回撤', pct(visibleResult.result.maxDrawdown)],
-                  ['胜率', pct(visibleResult.result.winRate)],
-                  [
-                    '盈亏比',
-                    fmt(visibleResult.result.payoff),
-                    '平均盈利 / 平均亏损绝对值',
-                  ],
-                  [
-                    '利润因子',
-                    fmt(visibleResult.result.profitFactor),
-                    '盈利总额 / 亏损总额绝对值',
-                  ],
-                  ['已平仓笔数', String(visibleResult.result.closedTrades)],
-                ]}
-              />
+          </TabsContent>
+          <TabsContent value="guidance">
+            <TradeGuidancePanel series={current} />
+          </TabsContent>
+          <TabsContent value="volume">
+            <VolumePanel series={current} />
+          </TabsContent>
+          <TabsContent value="analysis">
+            <TradeGuidancePanel series={current} />
+            <VolumePanel series={current} />
+            <StockResearch symbol={current.symbol} />
+            <NewsPanel symbol={current.symbol} />
+            <Metrics
+              items={[
+                [
+                  `${current.symbol} ${mode === 'demo' ? '虚构演示价' : '行情参考价格'}`,
+                  '$' + fmt(spot),
+                  '最新成交或最后日线',
+                ],
+                [
+                  '日线涨跌',
+                  pct(last.close / ind.at(-2)!.close - 1),
+                  '基于已完成日线',
+                ],
+                [
+                  'RSI · 14',
+                  fmt(last.rsi),
+                  last.rsi! > 70
+                    ? '超买区域'
+                    : last.rsi! < 30
+                      ? '超卖区域'
+                      : '中性区域',
+                ],
+                ['成交量比', fmt(last.volumeRatio) + '×', '相对前20日均量'],
+              ]}
+            />
+            <div className="grid2">
               <section className="panel">
-                <h2>账户权益曲线</h2>
+                <div className="sectionTitle">
+                  <h2>{current.symbol} · 日线行情</h2>
+                  <small>最近90个数据日</small>
+                </div>
+                <div className="row">
+                  <small style={{ color: '#e8bb66' }}>━ MA20</small>
+                  <small style={{ color: '#8da3ff' }}>━ MA50</small>
+                  <small>布林带 20 / 2σ · 下方成交量</small>
+                </div>
+                <Candles bars={bars} fills={visibleResult?.result.fills} />
+                <small>
+                  B / S 为当前回测的实际模拟成交标记；鼠标悬停蜡烛可读 OHLCV。
+                </small>
+              </section>
+              <section className="panel">
+                <h2>技术解读</h2>
+                <Pick
+                  label="信号策略"
+                  value={strategy}
+                  options={strategies}
+                  onChange={(v) => setStrategy(v as Strategy)}
+                />
+                <div className="message">
+                  <h3>{signalNames[action(ind, ind.length - 1, strategy)]}</h3>
+                  <p>
+                    {last.ma20! > last.ma50!
+                      ? '20日均线高于50日均线，短期趋势强于中期。'
+                      : '20日均线低于50日均线，短期趋势弱于中期。'}
+                  </p>
+                </div>
+                <DataTable
+                  columns={['指标', '当前值']}
+                  rows={[
+                    ['MA20 / MA50', `${fmt(last.ma20)} / ${fmt(last.ma50)}`],
+                    [
+                      'MACD / 信号线',
+                      `${fmt(last.macd)} / ${fmt(last.signal)}`,
+                    ],
+                    [
+                      '布林带上 / 下轨',
+                      `${fmt(last.upper)} / ${fmt(last.lower)}`,
+                    ],
+                    ['MFI · 14', fmt(last.mfi)],
+                    ['OBV', fmt(last.obv, 0)],
+                  ]}
+                />
+                <p className="fineprint">
+                  MFI、OBV
+                  为量价代理指标，不等于“主力净流入”。美股资金动向需要独立的大单
+                  / 逐笔 / 机构持仓数据，本版不伪造主力数据。
+                </p>
+              </section>
+            </div>
+            <section className="panel">
+              <h2>自选股对比</h2>
+              <DataTable
+                columns={[
+                  '股票',
+                  '日线日期',
+                  '收盘价',
+                  'RSI14',
+                  'MACD柱',
+                  '量比',
+                  '所选策略条件',
+                ]}
+                rows={data.map((d) => {
+                  const a = indicators(d.bars),
+                    x = a.at(-1)!;
+                  return [
+                    d.symbol,
+                    d.asOf,
+                    fmt(x.close),
+                    fmt(x.rsi),
+                    fmt(x.hist),
+                    fmt(x.volumeRatio),
+                    signalNames[action(a, a.length - 1, strategy)],
+                  ];
+                })}
+              />
+            </section>
+            <div className="grid2">
+              <section className="panel">
+                <h2>RSI · 14</h2>
                 <LineChart
                   series={[
                     {
-                      name: '策略权益',
-                      color: '#58dfb0',
-                      values: visibleResult.result.curve.map((x) => x.equity),
+                      name: 'RSI',
+                      color: '#8da3ff',
+                      values: ind.slice(-90).map((x) => x.rsi ?? 50),
                     },
                     {
-                      name: '买入持有基准',
-                      color: '#7b92b2',
-                      values: visibleResult.result.curve.map(
-                        (x) => x.benchmark,
-                      ),
+                      name: '超买70',
+                      color: '#ff768b',
+                      values: Array(90).fill(70),
+                    },
+                    {
+                      name: '超卖30',
+                      color: '#58dfb0',
+                      values: Array(90).fill(30),
                     },
                   ]}
-                  labels={visibleResult.result.curve.map((x) => x.date)}
                 />
-                <p>
-                  期末未平仓 {visibleResult.result.openQty} 股 ·{' '}
-                  {visibleResult.result.halt ? '已触发熔断' : '未触发熔断'}
-                </p>
               </section>
               <section className="panel">
-                <div className="sectionTitle">
-                  <h2>成交明细（最近100条）</h2>
-                  <button
-                    className="secondary"
-                    onClick={() =>
-                      download(
-                        'backtest-trades.csv',
-                        'date,side,price,quantity,fee,pnl,reason\n' +
-                          visibleResult.result.fills
-                            .map((f) =>
-                              [
-                                f.date,
-                                f.side,
-                                f.price,
-                                f.qty,
-                                f.fee,
-                                f.pnl ?? '',
-                                f.reason,
-                              ].join(','),
-                            )
-                            .join('\n'),
-                        'text/csv;charset=utf-8',
-                      )
-                    }
-                  >
-                    导出全部 CSV
-                  </button>
-                </div>
-                <DataTable
-                  columns={[
-                    '日期',
-                    '方向',
-                    '数量',
-                    '成交价',
-                    '费用',
-                    '已实现损益',
-                    '原因',
+                <h2>MACD</h2>
+                <LineChart
+                  series={[
+                    {
+                      name: 'MACD',
+                      color: '#58dfb0',
+                      values: ind.slice(-90).map((x) => x.macd ?? 0),
+                    },
+                    {
+                      name: '信号线',
+                      color: '#e8bb66',
+                      values: ind.slice(-90).map((x) => x.signal ?? 0),
+                    },
                   ]}
-                  rows={visibleResult.result.fills
-                    .slice(-100)
-                    .reverse()
-                    .map((f) => [
-                      f.date,
-                      f.side,
-                      f.qty,
-                      fmt(f.price),
-                      fmt(f.fee),
-                      fmt(f.pnl),
-                      f.reason,
-                    ])}
+                  format={(x) => fmt(x, 1)}
                 />
               </section>
-            </>
-          ) : (
-            <section className="panel">
-              <h2>选择策略和时间区间后运行</h2>
-              <p>
-                这里将展示真实计算的绩效与成交记录。演示行情上的回测不代表股票历史表现。
-              </p>
-            </section>
-          )}
-        </TabsContent>
-        <TabsContent value="options">
-          <section className="panel">
-            <div className="sectionTitle">
-              <h2>{current.symbol} · 期权策略构建</h2>
-              <span className="badge">理论 / 手动权利金</span>
             </div>
-            <div className="formgrid">
-              <Pick
-                label="策略模板"
-                value={optionKind}
-                options={optionStrategies}
-                onChange={(v) =>
-                  setOptionKind(v as keyof typeof optionStrategies)
-                }
-              />
-              <Num
-                label="基础行权价 USD"
-                value={strike}
-                onChange={setStrike}
-                min={1}
-              />
-              <Num
-                label="行权价间距 USD"
-                value={width}
-                onChange={setWidth}
-                min={1}
-              />
-              <Num
-                label="距到期天数"
-                value={days}
-                onChange={setDays}
-                min={1}
-                max={730}
-              />
-              <Num
-                label="隐含波动率 %"
-                value={iv * 100}
-                onChange={(v) => setIv(v / 100)}
-                min={1}
-                max={300}
-              />
-              <Num
-                label="无风险利率 %"
-                value={rate * 100}
-                onChange={(v) => setRate(v / 100)}
-                step={0.1}
-                max={30}
-              />
-              <Num
-                label="连续股息率 %"
-                value={dividend * 100}
-                onChange={(v) => setDividend(v / 100)}
-                step={0.1}
-                max={30}
-              />
-              <Num
-                label="组合数量"
-                value={contracts}
-                onChange={setContracts}
-                min={1}
-                max={100}
-              />
-            </div>
-            {!optValid && (
-              <p className="negative">
-                请填写合法参数：行权价必须大于间距；到期1–730天；波动率1%–300%。
+            {current.warnings.map((w) => (
+              <p className="fineprint" key={w}>
+                {w}
               </p>
-            )}
-            <p className="notice">
-              标的参考价 ${fmt(spot)} · Black–Scholes
-              欧式理论估值。美股个股期权通常为美式，本模型不模拟提前行权、指派、除息及真实成交价差。每标准合约100股，暂不支持调整后合约。
-            </p>
-            <DataTable
-              columns={[
-                '方向 / 数量',
-                '类型',
-                '行权价',
-                '权利金 / 股（可编辑）',
-                'Delta',
-                'Gamma',
-                'Theta / 日',
-                'Vega / 1%',
-              ]}
-              rows={legs.map((l, i) => {
-                const g =
-                  l.type === 'stock'
-                    ? null
-                    : greeks(spot, l.strike, days, iv, l.type, rate, dividend);
-                return [
-                  `${l.qty > 0 ? '买入' : '卖出'} ${Math.abs(l.qty)}`,
-                  l.type,
-                  l.type === 'stock' ? '—' : fmt(l.strike),
-                  <input
-                    key={i}
-                    aria-label={`第${i + 1}腿权利金`}
-                    style={{ width: 120 }}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={
-                      Number.isFinite(l.premium)
-                        ? Number(l.premium.toFixed(4))
-                        : ''
-                    }
-                    onChange={(e) => {
-                      const p = legs.map((x) => x.premium);
-                      p[i] =
-                        e.target.value === '' ? NaN : Number(e.target.value);
-                      setOverrides(p);
-                    }}
-                  />,
-                  fmt(g?.delta, 3),
-                  fmt(g?.gamma, 4),
-                  fmt(g?.theta, 3),
-                  fmt(g?.vega, 3),
-                ];
-              })}
-            />
-            <p className="fineprint">
-              Greeks
-              为单份每股理论值，不会因为手动权利金而反推IV。更改策略参数将重置手动权利金；下单前请核对。
-            </p>
-          </section>
-          <Metrics
-            items={[
-              [
-                premium >= 0 ? '净支出 / 组合' : '净收入 / 组合',
-                '$' + fmt(Math.abs(premium)),
-              ],
-              ['最大收益 / 组合', fmt(risk.maxProfit)],
-              ['最大亏损 / 组合', fmt(risk.maxLoss)],
-              [
-                '盈亏平衡价',
-                risk.breakevens.map((x) => fmt(x)).join(' / ') || '无有限交点',
-              ],
-            ]}
-          />
-          <div className="grid2">
+            ))}
+          </TabsContent>
+          <TabsContent value="backtest">
             <section className="panel">
-              <h2>到期损益 · 每组合 USD</h2>
-              <LineChart
-                series={[
-                  {
-                    name: '到期损益（未扣手续费）',
-                    color: '#58dfb0',
-                    values: optPayoffs,
-                  },
-                ]}
-                labels={optPrices.map((s) => '$' + fmt(s, 0))}
-              />
-              <p className="fineprint">
-                横轴：到期标的价格。收益上限 /
-                亏损上限按全价格域计算，非仅图中区间。
-              </p>
-            </section>
-            <section className="panel">
-              <h2>记录期权模拟交易</h2>
-              <p>
-                以当前各腿权利金记录开仓，组合整体计价、整体平仓。每合约单边费用
-                $0.65。
-              </p>
-              <Metrics
-                items={[
-                  ['组合数量', fmt(contracts, 0)],
-                  ['开仓费用', '$' + fmt(optionFee * contracts)],
-                ]}
-              />
-              <button disabled={!ready || !optValid} onClick={buyOption}>
-                加入模拟账户 →
-              </button>
-              <p className="fineprint">
-                现金担保看跌预留完整行权资金；备兑组合同时模拟买入100股，不占用已有股票。价差预留定义风险所需资金。期权到期采用内在价值情景估值、手动整体平仓，不执行真实行权或指派。
-              </p>
-            </section>
-          </div>
-          <section className="panel">
-            <h2>真实期权链 · Alpaca 指示性数据</h2>
-            <div className="formgrid">
-              <label>
-                到期日筛选（可留空）
-                <input
-                  type="date"
-                  value={chainExpiry}
-                  onChange={(e) => setChainExpiry(e.target.value)}
-                />
-              </label>
-              <Pick
-                label="类型筛选"
-                value={chainType}
-                onChange={setChainType}
-                options={{ all: '全部', C: '看涨 Call', P: '看跌 Put' }}
-              />
-              <button
-                disabled={busy}
-                onClick={loadChain}
-                style={{ alignSelf: 'end' }}
-              >
-                获取期权链
-              </button>
-            </div>
-            <p className="fineprint">
-              在“数据与提醒”填写 Alpaca
-              数据凭证后可用。此处报价供查看，不会自动覆盖上方情景权利金。
-            </p>
-            {chain && (
-              <>
-                <p className="notice">
-                  {chain.source}
-                  {chain.truncated
-                    ? ' · 已截取前500个合约，请缩小到期日范围'
-                    : ''}
-                </p>
-                <DataTable
-                  columns={[
-                    '合约',
-                    '到期日',
-                    '类型',
-                    '行权价',
-                    'Bid',
-                    'Ask',
-                    'IV',
-                    'Delta',
-                    '报价时间 UTC',
-                  ]}
-                  rows={chainRows}
-                />
-              </>
-            )}
-          </section>
-          <section className="panel">
-            <h2>期权历史回测：尚未启用</h2>
-            <p>
-              需要逐日历史合约链、买卖报价、到期与公司行动数据；当前提供到期损益和持仓情景模拟，不能用它替代期权历史策略绩效。
-            </p>
-          </section>
-        </TabsContent>
-        <TabsContent value="paper">
-          <div className="notice">
-            本设备模拟账户 · 初始 $100,000 ·
-            记录保存在当前浏览器，请导出备份。不同数据源持仓分开标记，仅同源行情更新估值。
-          </div>
-          <Metrics
-            items={[
-              ['账户权益', '$' + fmt(equity(account))],
-              ['可用资金', '$' + fmt(available(account))],
-              ['累计损益', '$' + fmt(equity(account) - account.initial)],
-              [
-                '回撤 / 状态',
-                pct(
-                  1 - equity(account) / Math.max(account.peak, equity(account)),
-                ),
-                account.halted ? '已熔断 · 禁止新开仓' : '正常',
-              ],
-            ]}
-          />
-          <div className="grid2">
-            <section className="panel">
-              <h2>{current.symbol} · 股票模拟买入</h2>
-              <div className="formgrid">
-                <Num
-                  label="股票数量（整股）"
-                  value={quantity}
-                  onChange={setQuantity}
-                  min={1}
-                />
-                <button
-                  disabled={!ready}
-                  style={{ alignSelf: 'end' }}
-                  onClick={buyStock}
-                >
-                  模拟买入
-                </button>
+              <div className="sectionTitle">
+                <h2>{current.symbol} · 股票策略回测</h2>
+                <button onClick={run}>运行回测 →</button>
               </div>
-              <p className="fineprint">
-                参考价 ${fmt(spot)} · {current.source}
-                。市价模拟含5bp滑点和1bp单边费用，不模拟撮合排队 /
-                市场深度；参考价可能陈旧。
-              </p>
-            </section>
-            <section className="panel">
-              <h2>账户风控</h2>
               <div className="formgrid">
+                <Pick
+                  label="策略"
+                  value={strategy}
+                  options={strategies}
+                  onChange={(v) => setStrategy(v as Strategy)}
+                />
                 <Num
-                  label="单标的累计风险 %"
-                  value={maxPos * 100}
+                  label="初始资金 USD"
+                  value={config.initial}
+                  onChange={(v) => setConfig({ ...config, initial: v })}
+                  min={100}
+                />
+                <label>
+                  开始日期
+                  <input
+                    type="date"
+                    value={config.start}
+                    onChange={(e) =>
+                      setConfig({ ...config, start: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  结束日期
+                  <input
+                    type="date"
+                    value={config.end}
+                    onChange={(e) =>
+                      setConfig({ ...config, end: e.target.value })
+                    }
+                  />
+                </label>
+                <Num
+                  label="仓位 %"
+                  value={config.allocation * 100}
                   onChange={(v) =>
-                    Number.isFinite(v) &&
-                    v >= 1 &&
-                    v <= 100 &&
-                    setMaxPos(v / 100)
+                    setConfig({ ...config, allocation: v / 100 })
                   }
+                  max={100}
                   min={1}
+                />
+                <Num
+                  label="单边费用 bp"
+                  value={config.feeBps}
+                  onChange={(v) => setConfig({ ...config, feeBps: v })}
                   max={100}
                 />
                 <Num
-                  label="账户回撤熔断 %"
-                  value={ddLimit * 100}
-                  onChange={(v) =>
-                    Number.isFinite(v) &&
-                    v >= 1 &&
-                    v <= 99 &&
-                    setDdLimit(v / 100)
-                  }
+                  label="单边滑点 bp"
+                  value={config.slippageBps}
+                  onChange={(v) => setConfig({ ...config, slippageBps: v })}
+                  max={100}
+                />
+                <Num
+                  label="止损 %"
+                  value={config.stop * 100}
+                  onChange={(v) => setConfig({ ...config, stop: v / 100 })}
                   min={1}
                   max={99}
                 />
                 <Num
-                  label="股票止损 %"
-                  value={stop * 100}
+                  label="回撤熔断 %"
+                  value={config.maxDrawdown * 100}
                   onChange={(v) =>
-                    Number.isFinite(v) && v >= 1 && v <= 99 && setStop(v / 100)
+                    setConfig({ ...config, maxDrawdown: v / 100 })
                   }
                   min={1}
                   max={99}
                 />
               </div>
               <p className="fineprint">
-                行情刷新时检查股票止损 /
-                熔断；熔断关闭股票并锁定新开仓，期权组合需手动平仓。页面关闭时不运行。未刷新标的保留上次估值；这些约束不能代替实盘风控。
+                固定50根日线预热；当日收盘信号于下一可用交易日开盘执行。只做多、不加杠杆；止损遇跳空按较差开盘价。回撤熔断于收盘检测、下一日开盘清仓。夏普无风险收益设为0，按252日年化。基准为100%买入持有，未计费用。量价多因子不是基本面因子模型。
               </p>
             </section>
-          </div>
-          <section className="panel">
-            <div className="sectionTitle">
-              <h2>持仓与浮动盈亏</h2>
-              <button
-                className="secondary"
-                onClick={() => {
-                  setInput(
-                    [...new Set(account.positions.map((p) => p.symbol))].join(
-                      ', ',
-                    ),
-                  );
-                  setMessage(
-                    '持仓代码已填入输入框，请选择相同数据源并点击分析股票更新估值。',
-                  );
-                }}
-              >
-                将持仓填入查询
-              </button>
-            </div>
-            <DataTable
-              columns={[
-                '标的 / 策略',
-                '数据源',
-                '数量',
-                '开仓单价 / 组合',
-                '当前单价 / 组合',
-                '浮动盈亏',
-                '预留资金',
-                '操作',
+            {visibleResult ? (
+              <>
+                <p className="fineprint">
+                  结果参数快照：{strategies[visibleResult.strategy]} ·{' '}
+                  {visibleResult.config.start} 至 {visibleResult.config.end} ·
+                  仓位 {pct(visibleResult.config.allocation)}
+                  ；修改参数后需重新运行。
+                </p>
+                <Metrics
+                  items={[
+                    ['总收益', pct(visibleResult.result.total)],
+                    ['年化收益', pct(visibleResult.result.annual)],
+                    ['夏普比率', fmt(visibleResult.result.sharpe)],
+                    ['最大回撤', pct(visibleResult.result.maxDrawdown)],
+                    ['胜率', pct(visibleResult.result.winRate)],
+                    [
+                      '盈亏比',
+                      fmt(visibleResult.result.payoff),
+                      '平均盈利 / 平均亏损绝对值',
+                    ],
+                    [
+                      '利润因子',
+                      fmt(visibleResult.result.profitFactor),
+                      '盈利总额 / 亏损总额绝对值',
+                    ],
+                    ['已平仓笔数', String(visibleResult.result.closedTrades)],
+                  ]}
+                />
+                <section className="panel">
+                  <h2>账户权益曲线</h2>
+                  <LineChart
+                    series={[
+                      {
+                        name: '策略权益',
+                        color: '#58dfb0',
+                        values: visibleResult.result.curve.map((x) => x.equity),
+                      },
+                      {
+                        name: '买入持有基准',
+                        color: '#7b92b2',
+                        values: visibleResult.result.curve.map(
+                          (x) => x.benchmark,
+                        ),
+                      },
+                    ]}
+                    labels={visibleResult.result.curve.map((x) => x.date)}
+                  />
+                  <p>
+                    期末未平仓 {visibleResult.result.openQty} 股 ·{' '}
+                    {visibleResult.result.halt ? '已触发熔断' : '未触发熔断'}
+                  </p>
+                </section>
+                <section className="panel">
+                  <div className="sectionTitle">
+                    <h2>成交明细（最近100条）</h2>
+                    <button
+                      className="secondary"
+                      onClick={() =>
+                        download(
+                          'backtest-trades.csv',
+                          'date,side,price,quantity,fee,pnl,reason\n' +
+                            visibleResult.result.fills
+                              .map((f) =>
+                                [
+                                  f.date,
+                                  f.side,
+                                  f.price,
+                                  f.qty,
+                                  f.fee,
+                                  f.pnl ?? '',
+                                  f.reason,
+                                ].join(','),
+                              )
+                              .join('\n'),
+                          'text/csv;charset=utf-8',
+                        )
+                      }
+                    >
+                      导出全部 CSV
+                    </button>
+                  </div>
+                  <DataTable
+                    columns={[
+                      '日期',
+                      '方向',
+                      '数量',
+                      '成交价',
+                      '费用',
+                      '已实现损益',
+                      '原因',
+                    ]}
+                    rows={visibleResult.result.fills
+                      .slice(-100)
+                      .reverse()
+                      .map((f) => [
+                        f.date,
+                        f.side,
+                        f.qty,
+                        fmt(f.price),
+                        fmt(f.fee),
+                        fmt(f.pnl),
+                        f.reason,
+                      ])}
+                  />
+                </section>
+              </>
+            ) : (
+              <section className="panel">
+                <h2>选择策略和时间区间后运行</h2>
+                <p>
+                  这里将展示真实计算的绩效与成交记录。演示行情上的回测不代表股票历史表现。
+                </p>
+              </section>
+            )}
+          </TabsContent>
+          <TabsContent value="options">
+            <section className="panel">
+              <div className="sectionTitle">
+                <h2>{current.symbol} · 期权策略构建</h2>
+                <span className="badge">理论 / 手动权利金</span>
+              </div>
+              <div className="formgrid">
+                <Pick
+                  label="策略模板"
+                  value={optionKind}
+                  options={optionStrategies}
+                  onChange={(v) =>
+                    setOptionKind(v as keyof typeof optionStrategies)
+                  }
+                />
+                <Num
+                  label="基础行权价 USD"
+                  value={strike}
+                  onChange={setStrike}
+                  min={1}
+                />
+                <Num
+                  label="行权价间距 USD"
+                  value={width}
+                  onChange={setWidth}
+                  min={1}
+                />
+                <Num
+                  label="距到期天数"
+                  value={days}
+                  onChange={setDays}
+                  min={1}
+                  max={730}
+                />
+                <Num
+                  label="隐含波动率 %"
+                  value={iv * 100}
+                  onChange={(v) => setIv(v / 100)}
+                  min={1}
+                  max={300}
+                />
+                <Num
+                  label="无风险利率 %"
+                  value={rate * 100}
+                  onChange={(v) => setRate(v / 100)}
+                  step={0.1}
+                  max={30}
+                />
+                <Num
+                  label="连续股息率 %"
+                  value={dividend * 100}
+                  onChange={(v) => setDividend(v / 100)}
+                  step={0.1}
+                  max={30}
+                />
+                <Num
+                  label="组合数量"
+                  value={contracts}
+                  onChange={setContracts}
+                  min={1}
+                  max={100}
+                />
+              </div>
+              {!optValid && (
+                <p className="negative">
+                  请填写合法参数：行权价必须大于间距；到期1–730天；波动率1%–300%。
+                </p>
+              )}
+              <p className="notice">
+                标的参考价 ${fmt(spot)} · Black–Scholes
+                欧式理论估值。美股个股期权通常为美式，本模型不模拟提前行权、指派、除息及真实成交价差。每标准合约100股，暂不支持调整后合约。
+              </p>
+              <DataTable
+                columns={[
+                  '方向 / 数量',
+                  '类型',
+                  '行权价',
+                  '权利金 / 股（可编辑）',
+                  'Delta',
+                  'Gamma',
+                  'Theta / 日',
+                  'Vega / 1%',
+                ]}
+                rows={legs.map((l, i) => {
+                  const g =
+                    l.type === 'stock'
+                      ? null
+                      : greeks(
+                          spot,
+                          l.strike,
+                          days,
+                          iv,
+                          l.type,
+                          rate,
+                          dividend,
+                        );
+                  return [
+                    `${l.qty > 0 ? '买入' : '卖出'} ${Math.abs(l.qty)}`,
+                    l.type,
+                    l.type === 'stock' ? '—' : fmt(l.strike),
+                    <input
+                      key={i}
+                      aria-label={`第${i + 1}腿权利金`}
+                      style={{ width: 120 }}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={
+                        Number.isFinite(l.premium)
+                          ? Number(l.premium.toFixed(4))
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const p = legs.map((x) => x.premium);
+                        p[i] =
+                          e.target.value === '' ? NaN : Number(e.target.value);
+                        setOverrides(p);
+                      }}
+                    />,
+                    fmt(g?.delta, 3),
+                    fmt(g?.gamma, 4),
+                    fmt(g?.theta, 3),
+                    fmt(g?.vega, 3),
+                  ];
+                })}
+              />
+              <p className="fineprint">
+                Greeks
+                为单份每股理论值，不会因为手动权利金而反推IV。更改策略参数将重置手动权利金；下单前请核对。
+              </p>
+            </section>
+            <Metrics
+              items={[
+                [
+                  premium >= 0 ? '净支出 / 组合' : '净收入 / 组合',
+                  '$' + fmt(Math.abs(premium)),
+                ],
+                ['最大收益 / 组合', fmt(risk.maxProfit)],
+                ['最大亏损 / 组合', fmt(risk.maxLoss)],
+                [
+                  '盈亏平衡价',
+                  risk.breakevens.map((x) => fmt(x)).join(' / ') ||
+                    '无有限交点',
+                ],
               ]}
-              rows={account.positions.map((p) => [
-                `${p.symbol} · ${p.label}`,
-                p.source,
-                p.qty,
-                fmt(p.entry),
-                fmt(p.mark),
-                <span className={p.mark >= p.entry ? 'positive' : 'negative'}>
-                  {fmt((p.mark - p.entry) * p.qty)}
-                </span>,
-                fmt(p.reserve * p.qty),
+            />
+            <div className="grid2">
+              <section className="panel">
+                <h2>到期损益 · 每组合 USD</h2>
+                <LineChart
+                  series={[
+                    {
+                      name: '到期损益（未扣手续费）',
+                      color: '#58dfb0',
+                      values: optPayoffs,
+                    },
+                  ]}
+                  labels={optPrices.map((s) => '$' + fmt(s, 0))}
+                />
+                <p className="fineprint">
+                  横轴：到期标的价格。收益上限 /
+                  亏损上限按全价格域计算，非仅图中区间。
+                </p>
+              </section>
+              <section className="panel">
+                <h2>记录期权模拟交易</h2>
+                <p>
+                  以当前各腿权利金记录开仓，组合整体计价、整体平仓。每合约单边费用
+                  $0.65。
+                </p>
+                <Metrics
+                  items={[
+                    ['组合数量', fmt(contracts, 0)],
+                    ['开仓费用', '$' + fmt(optionFee * contracts)],
+                  ]}
+                />
+                <button disabled={!ready || !optValid} onClick={buyOption}>
+                  加入模拟账户 →
+                </button>
+                <p className="fineprint">
+                  现金担保看跌预留完整行权资金；备兑组合同时模拟买入100股，不占用已有股票。价差预留定义风险所需资金。期权到期采用内在价值情景估值、手动整体平仓，不执行真实行权或指派。
+                </p>
+              </section>
+            </div>
+            <section className="panel">
+              <h2>真实期权链 · Alpaca 指示性数据</h2>
+              <div className="formgrid">
+                <label>
+                  到期日筛选（可留空）
+                  <input
+                    type="date"
+                    value={chainExpiry}
+                    onChange={(e) => setChainExpiry(e.target.value)}
+                  />
+                </label>
+                <Pick
+                  label="类型筛选"
+                  value={chainType}
+                  onChange={setChainType}
+                  options={{ all: '全部', C: '看涨 Call', P: '看跌 Put' }}
+                />
+                <button
+                  disabled={busy}
+                  onClick={loadChain}
+                  style={{ alignSelf: 'end' }}
+                >
+                  获取期权链
+                </button>
+              </div>
+              <p className="fineprint">
+                在“数据与提醒”填写 Alpaca
+                数据凭证后可用。此处报价供查看，不会自动覆盖上方情景权利金。
+              </p>
+              {chain && (
+                <>
+                  <p className="notice">
+                    {chain.source}
+                    {chain.truncated
+                      ? ' · 已截取前500个合约，请缩小到期日范围'
+                      : ''}
+                  </p>
+                  <DataTable
+                    columns={[
+                      '合约',
+                      '到期日',
+                      '类型',
+                      '行权价',
+                      'Bid',
+                      'Ask',
+                      'IV',
+                      'Delta',
+                      '报价时间 UTC',
+                    ]}
+                    rows={chainRows}
+                  />
+                </>
+              )}
+            </section>
+            <section className="panel">
+              <h2>期权历史回测：尚未启用</h2>
+              <p>
+                需要逐日历史合约链、买卖报价、到期与公司行动数据；当前提供到期损益和持仓情景模拟，不能用它替代期权历史策略绩效。
+              </p>
+            </section>
+          </TabsContent>
+          <TabsContent value="paper">
+            <div className="notice">
+              本设备模拟账户 · 初始 $100,000 ·
+              记录保存在当前浏览器，请导出备份。不同数据源持仓分开标记，仅同源行情更新估值。
+            </div>
+            <Metrics
+              items={[
+                ['账户权益', '$' + fmt(equity(account))],
+                ['可用资金', '$' + fmt(available(account))],
+                ['累计损益', '$' + fmt(equity(account) - account.initial)],
+                [
+                  '回撤 / 状态',
+                  pct(
+                    1 -
+                      equity(account) / Math.max(account.peak, equity(account)),
+                  ),
+                  account.halted ? '已熔断 · 禁止新开仓' : '正常',
+                ],
+              ]}
+            />
+            <div className="grid2">
+              <section className="panel">
+                <h2>{current.symbol} · 股票模拟买入</h2>
+                <div className="formgrid">
+                  <Num
+                    label="股票数量（整股）"
+                    value={quantity}
+                    onChange={setQuantity}
+                    min={1}
+                  />
+                  <button
+                    disabled={!ready}
+                    style={{ alignSelf: 'end' }}
+                    onClick={buyStock}
+                  >
+                    模拟买入
+                  </button>
+                </div>
+                <p className="fineprint">
+                  参考价 ${fmt(spot)} · {current.source}
+                  。市价模拟含5bp滑点和1bp单边费用，不模拟撮合排队 /
+                  市场深度；参考价可能陈旧。
+                </p>
+              </section>
+              <section className="panel">
+                <h2>账户风控</h2>
+                <div className="formgrid">
+                  <Num
+                    label="单标的累计风险 %"
+                    value={maxPos * 100}
+                    onChange={(v) =>
+                      Number.isFinite(v) &&
+                      v >= 1 &&
+                      v <= 100 &&
+                      setMaxPos(v / 100)
+                    }
+                    min={1}
+                    max={100}
+                  />
+                  <Num
+                    label="账户回撤熔断 %"
+                    value={ddLimit * 100}
+                    onChange={(v) =>
+                      Number.isFinite(v) &&
+                      v >= 1 &&
+                      v <= 99 &&
+                      setDdLimit(v / 100)
+                    }
+                    min={1}
+                    max={99}
+                  />
+                  <Num
+                    label="股票止损 %"
+                    value={stop * 100}
+                    onChange={(v) =>
+                      Number.isFinite(v) &&
+                      v >= 1 &&
+                      v <= 99 &&
+                      setStop(v / 100)
+                    }
+                    min={1}
+                    max={99}
+                  />
+                </div>
+                <p className="fineprint">
+                  行情刷新时检查股票止损 /
+                  熔断；熔断关闭股票并锁定新开仓，期权组合需手动平仓。页面关闭时不运行。未刷新标的保留上次估值；这些约束不能代替实盘风控。
+                </p>
+              </section>
+            </div>
+            <section className="panel">
+              <div className="sectionTitle">
+                <h2>持仓与浮动盈亏</h2>
                 <button
                   className="secondary"
                   onClick={() => {
-                    try {
-                      setAccount(
-                        closePosition(
-                          account,
-                          p.id,
-                          p.kind === 'stock'
-                            ? p.mark * p.qty * 0.0006
-                            : p.legs!.filter((l) => l.type !== 'stock').length *
-                                0.65 *
-                                p.qty,
-                        ),
-                      );
-                      setMessage('模拟持仓已平仓。');
-                    } catch (e) {
-                      setMessage((e as Error).message);
-                    }
+                    setInput(
+                      [...new Set(account.positions.map((p) => p.symbol))].join(
+                        ', ',
+                      ),
+                    );
+                    setMessage(
+                      '持仓代码已填入输入框，请选择相同数据源并点击分析股票更新估值。',
+                    );
                   }}
                 >
-                  模拟平仓
-                </button>,
-              ])}
-            />
-          </section>
-          <section className="panel">
-            <div className="sectionTitle">
-              <h2>交易流水</h2>
-              <button
-                className="secondary"
-                onClick={() =>
-                  download(
-                    'paper-account.json',
-                    JSON.stringify(account, null, 2),
-                  )
-                }
-              >
-                导出账户备份
-              </button>
-            </div>
-            <DataTable
-              columns={['时间 UTC', '操作', '现金变动']}
-              rows={account.ledger
-                .slice(0, 100)
-                .map((l) => [
-                  l.time.slice(0, 19).replace('T', ' '),
-                  l.description,
-                  fmt(l.amount),
-                ])}
-            />
-          </section>
-        </TabsContent>
-        <TabsContent value="settings" keepMounted>
-          <section className="panel">
-            <h2>导入 {current.symbol} 历史日线</h2>
-            <p>
-              标准 CSV 列：date,open,high,low,close,volume。日期
-              YYYY-MM-DD，至少55根日线，所有价格须使用一致复权口径。
-            </p>
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              aria-label="导入历史日线 CSV"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                try {
-                  if (file.size > 5e6) throw Error('CSV不得超过5MB');
-                  const d = importCsv(current.symbol, await file.text());
-                  setData((old) =>
-                    old.map((x) => (x.symbol === d.symbol ? d : x)),
-                  );
-                  setResult(null);
-                  setAuto(false);
-                  setMessage(d.warnings.join('；'));
-                } catch (err) {
-                  setMessage((err as Error).message);
-                }
-                e.target.value = '';
-              }}
-            />
-          </section>
-          <EmailSettings alerts={alerts} />
-          <div className="grid2">
-            <section className="panel">
-              <h2>数据连接</h2>
-              <p>
-                公共股票行情无需密钥；Alpaca IEX 历史 /
-                最新成交和期权链需要数据凭证。密钥只存在当前页面内存，经本站服务端转发给
-                Alpaca；不保存在浏览器存储。
-              </p>
-              <div
-                className="formgrid"
-                style={{ gridTemplateColumns: '1fr 1fr' }}
-              >
-                <label>
-                  Alpaca Key
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={key}
-                    onChange={(e) => setKey(e.target.value)}
-                  />
-                </label>
-                <label>
-                  Alpaca Secret
-                  <input
-                    type="password"
-                    autoComplete="off"
-                    value={secret}
-                    onChange={(e) => setSecret(e.target.value)}
-                  />
-                </label>
+                  将持仓填入查询
+                </button>
               </div>
-              <button
-                className="secondary"
-                onClick={() => {
-                  setKey('');
-                  setSecret('');
-                  setAuto(false);
-                  setMessage('凭证已从页面内存清除。');
-                }}
-              >
-                清除凭证
-              </button>
-              <p className="fineprint">
-                仅调用 data.alpaca.markets
-                行情端点；此应用没有真实券商下单端点。IEX
-                是单一交易所，并非全市场合并成交量。
-                <a
-                  href="https://docs.alpaca.markets/us/docs/market-data-faq"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  查看官方说明 ↗
-                </a>
-              </p>
+              <DataTable
+                columns={[
+                  '标的 / 策略',
+                  '数据源',
+                  '数量',
+                  '开仓单价 / 组合',
+                  '当前单价 / 组合',
+                  '浮动盈亏',
+                  '预留资金',
+                  '操作',
+                ]}
+                rows={account.positions.map((p) => [
+                  `${p.symbol} · ${p.label}`,
+                  p.source,
+                  p.qty,
+                  fmt(p.entry),
+                  fmt(p.mark),
+                  <span className={p.mark >= p.entry ? 'positive' : 'negative'}>
+                    {fmt((p.mark - p.entry) * p.qty)}
+                  </span>,
+                  fmt(p.reserve * p.qty),
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      try {
+                        setAccount(
+                          closePosition(
+                            account,
+                            p.id,
+                            p.kind === 'stock'
+                              ? p.mark * p.qty * 0.0006
+                              : p.legs!.filter((l) => l.type !== 'stock')
+                                  .length *
+                                  0.65 *
+                                  p.qty,
+                          ),
+                        );
+                        setMessage('模拟持仓已平仓。');
+                      } catch (e) {
+                        setMessage((e as Error).message);
+                      }
+                    }}
+                  >
+                    模拟平仓
+                  </button>,
+                ])}
+              />
             </section>
             <section className="panel">
-              <h2>信号扫描与提醒</h2>
-              <label
-                className="row"
-                style={{ flexDirection: 'row', margin: '18px 0' }}
-              >
-                <Switch checked={auto} onCheckedChange={setAuto} />{' '}
-                每60秒刷新自选股并扫描日线信号
-              </label>
-              <button
-                className="secondary"
-                onClick={async () => {
-                  if (typeof Notification === 'undefined') {
-                    setMessage(
-                      '当前浏览器不支持系统通知，请查看站内信号日志。',
-                    );
-                    return;
+              <div className="sectionTitle">
+                <h2>交易流水</h2>
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    download(
+                      'paper-account.json',
+                      JSON.stringify(account, null, 2),
+                    )
                   }
-                  const p = await Notification.requestPermission();
-                  setMessage(
-                    p === 'granted'
-                      ? '系统通知已启用'
-                      : '系统通知未获授权，仍保留站内提醒。',
-                  );
-                }}
-              >
-                启用浏览器通知
-              </button>
-              <button
-                className="secondary"
-                style={{ marginLeft: 10 }}
-                onClick={() => {
-                  data.forEach((d) => logSignal(d, strategy));
-                  setMessage(
-                    '已扫描当前加载数据；相同数据日、策略、信号去重。',
-                  );
-                }}
-              >
-                立即扫描
-              </button>
-              <p className="fineprint">
-                仅页面保持打开时运行；浏览器后台节流可能推迟执行。使用已完成日线生成条件，不是逐笔实时策略。邮件可接入本页
-                Resend 配置自动发送，X 自动发布和关闭页面后的定时服务尚未接入。
-              </p>
+                >
+                  导出账户备份
+                </button>
+              </div>
+              <DataTable
+                columns={['时间 UTC', '操作', '现金变动']}
+                rows={account.ledger
+                  .slice(0, 100)
+                  .map((l) => [
+                    l.time.slice(0, 19).replace('T', ' '),
+                    l.description,
+                    fmt(l.amount),
+                  ])}
+              />
             </section>
-          </div>
-          <section className="panel">
-            <div className="sectionTitle">
-              <h2>信号日志</h2>
-              <a
-                href={`mailto:?subject=${encodeURIComponent('Market Lab 美股策略信号')}&body=${encodeURIComponent(
-                  alerts
-                    .slice(0, 10)
-                    .map((x) => x.text)
-                    .join('\n') || '暂无信号',
-                )}`}
-              >
-                生成邮件草稿 ↗
-              </a>
+          </TabsContent>
+          <TabsContent value="settings" keepMounted>
+            <section className="panel">
+              <h2>导入 {current.symbol} 历史日线</h2>
+              <p>
+                标准 CSV 列：date,open,high,low,close,volume。日期
+                YYYY-MM-DD，至少55根日线，所有价格须使用一致复权口径。
+              </p>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                aria-label="导入历史日线 CSV"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    if (file.size > 5e6) throw Error('CSV不得超过5MB');
+                    const d = importCsv(current.symbol, await file.text());
+                    setData((old) =>
+                      old.map((x) => (x.symbol === d.symbol ? d : x)),
+                    );
+                    setResult(null);
+                    setAuto(false);
+                    setMessage(d.warnings.join('；'));
+                  } catch (err) {
+                    setMessage((err as Error).message);
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </section>
+            <EmailSettings alerts={alerts} />
+            <div className="grid2">
+              <section className="panel">
+                <h2>数据连接</h2>
+                <p>
+                  公共股票行情无需密钥；Alpaca IEX 历史 /
+                  最新成交和期权链需要数据凭证。密钥只存在当前页面内存，经本站服务端转发给
+                  Alpaca；不保存在浏览器存储。
+                </p>
+                <div
+                  className="formgrid"
+                  style={{ gridTemplateColumns: '1fr 1fr' }}
+                >
+                  <label>
+                    Alpaca Key
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={key}
+                      onChange={(e) => setKey(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Alpaca Secret
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={secret}
+                      onChange={(e) => setSecret(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setKey('');
+                    setSecret('');
+                    setAuto(false);
+                    setMessage('凭证已从页面内存清除。');
+                  }}
+                >
+                  清除凭证
+                </button>
+                <p className="fineprint">
+                  仅调用 data.alpaca.markets
+                  行情端点；此应用没有真实券商下单端点。IEX
+                  是单一交易所，并非全市场合并成交量。
+                  <a
+                    href="https://docs.alpaca.markets/us/docs/market-data-faq"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    查看官方说明 ↗
+                  </a>
+                </p>
+              </section>
+              <section className="panel">
+                <h2>信号扫描与提醒</h2>
+                <label
+                  className="row"
+                  style={{ flexDirection: 'row', margin: '18px 0' }}
+                >
+                  <Switch checked={auto} onCheckedChange={setAuto} />{' '}
+                  每60秒刷新自选股并扫描日线信号
+                </label>
+                <button
+                  className="secondary"
+                  onClick={async () => {
+                    if (typeof Notification === 'undefined') {
+                      setMessage(
+                        '当前浏览器不支持系统通知，请查看站内信号日志。',
+                      );
+                      return;
+                    }
+                    const p = await Notification.requestPermission();
+                    setMessage(
+                      p === 'granted'
+                        ? '系统通知已启用'
+                        : '系统通知未获授权，仍保留站内提醒。',
+                    );
+                  }}
+                >
+                  启用浏览器通知
+                </button>
+                <button
+                  className="secondary"
+                  style={{ marginLeft: 10 }}
+                  onClick={() => {
+                    data.forEach((d) => logSignal(d, strategy));
+                    setMessage(
+                      '已扫描当前加载数据；相同数据日、策略、信号去重。',
+                    );
+                  }}
+                >
+                  立即扫描
+                </button>
+                <p className="fineprint">
+                  仅页面保持打开时运行；浏览器后台节流可能推迟执行。使用已完成日线生成条件，不是逐笔实时策略。邮件可接入本页
+                  Resend 配置自动发送，X
+                  自动发布和关闭页面后的定时服务尚未接入。
+                </p>
+              </section>
             </div>
-            <DataTable
-              columns={['扫描时间 UTC', '信号 / 来源']}
-              rows={alerts.map((a) => [
-                a.time.slice(0, 19).replace('T', ' '),
-                a.text,
-              ])}
-            />
-          </section>
-          <section className="panel">
-            <h2>从研究到交易的实现路线</h2>
-            <DataTable
-              columns={['阶段', '本版状态']}
-              rows={[
-                [
-                  '行情、清洗、指标、单股/多股对比',
-                  '已实现；外部数据源按权限 / 可用性返回，失败明确报错',
-                ],
-                [
-                  '股票策略回测与绩效',
-                  '已实现4种策略、交易成本、止损、熔断、成交导出',
-                ],
-                [
-                  '期权策略与交易',
-                  '10种模板、收益图、理论Greeks、真实指示性链、情景模拟持仓',
-                ],
-                [
-                  '全天候自动提醒',
-                  '本版页面内扫描、系统通知及Resend邮件；关闭页面后运行需要后台服务',
-                ],
-                ['期权历史回测', '待接入历史期权链与真实报价数据集'],
-                [
-                  '真实自动化执行',
-                  '未来另行接入券商、权限与订单审计；当前只有模拟交易',
-                ],
-              ]}
-            />
-          </section>
-        </TabsContent>
-      </Tabs>
+            <section className="panel">
+              <div className="sectionTitle">
+                <h2>信号日志</h2>
+                <a
+                  href={`mailto:?subject=${encodeURIComponent('Market Lab 美股策略信号')}&body=${encodeURIComponent(
+                    alerts
+                      .slice(0, 10)
+                      .map((x) => x.text)
+                      .join('\n') || '暂无信号',
+                  )}`}
+                >
+                  生成邮件草稿 ↗
+                </a>
+              </div>
+              <DataTable
+                columns={['扫描时间 UTC', '信号 / 来源']}
+                rows={alerts.map((a) => [
+                  a.time.slice(0, 19).replace('T', ' '),
+                  a.text,
+                ])}
+              />
+            </section>
+            <section className="panel">
+              <h2>从研究到交易的实现路线</h2>
+              <DataTable
+                columns={['阶段', '本版状态']}
+                rows={[
+                  [
+                    '行情、清洗、指标、单股/多股对比',
+                    '已实现；外部数据源按权限 / 可用性返回，失败明确报错',
+                  ],
+                  [
+                    '股票策略回测与绩效',
+                    '已实现4种策略、交易成本、止损、熔断、成交导出',
+                  ],
+                  [
+                    '期权策略与交易',
+                    '10种模板、收益图、理论Greeks、真实指示性链、情景模拟持仓',
+                  ],
+                  [
+                    '全天候自动提醒',
+                    '本版页面内扫描、系统通知及Resend邮件；关闭页面后运行需要后台服务',
+                  ],
+                  ['期权历史回测', '待接入历史期权链与真实报价数据集'],
+                  [
+                    '真实自动化执行',
+                    '未来另行接入券商、权限与订单审计；当前只有模拟交易',
+                  ],
+                ]}
+              />
+            </section>
+          </TabsContent>
+        </Tabs>
+      </div>
       <footer>
         所有金额以 USD 计。回测与理论估值不保证未来收益。
         <a
