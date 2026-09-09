@@ -23,7 +23,7 @@ import NewsPanel from './news-panel';
 import VolumePanel from './volume-panel';
 import TradeGuidancePanel from './trade-guidance-panel';
 import DecisionBanner from './decision-banner';
-import CandidatePanel from './candidate-panel';
+import MarketScanPanel from './market-scan-panel';
 import { isCryptoSymbol } from '@/lib/assets';
 import SectorPanel from './sector-panel';
 import ReviewDashboard from './review-dashboard';
@@ -921,7 +921,7 @@ function Workspace({
         </section>
       )}
       <div hidden={!!failedQuery || busy}>
-        <CandidatePanel data={data} busy={busy} onSelect={setSelected} onScan={() => { const symbols = 'AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,JPM,XOM,PLTR'; setInput(symbols); void load(symbols); }} />
+        <MarketScanPanel onSelect={series=>{setData(old=>[series,...old.filter(x=>x.symbol!==series.symbol)].slice(0,12));setSelected(series.symbol);setTab('guidance');}} />
         <DecisionBanner
           series={current}
           onDetails={() => setTab('guidance')}

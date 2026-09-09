@@ -176,3 +176,21 @@ The homepage shows at most two long and two short technical candidates from the 
 BTC, ETH, XRP, SOL, DOGE, ADA, LTC, BCH, AVAX, LINK and DOT are reserved cryptocurrency aliases, also accepted with `-USD`. These use Coinbase Exchange USD spot candles and the latest trade, independent of the selected stock provider. A crypto request never falls back to an identically named equity. Candles follow UTC and trade every day; API failures remain errors. This is a single-exchange reference, not a consolidated or executable quote. Unsupported pairs and crypto in demo mode are rejected.
 
 The paper account supports fractional crypto spot quantities, with the existing illustrative 5bp slippage and 1bp fee assumptions (not exchange fees). Crypto backtests and equity options are disabled; US market risk checks and company research do not apply. Local browser account storage and export remain unchanged. Legacy positions tagged as stocks are not reinterpreted as crypto.
+
+## Daily whole-market scan
+
+The fixed 12-stock scan has been replaced by a server-persisted scan of Nasdaq Trader's `nasdaqlisted.txt` and `otherlisted.txt` directories. Common-stock/ordinary-share and ADR candidates are screened after excluding ETF/test flags and instrument-name patterns for preferred shares, warrants, rights, units, notes and funds. Unsupported ticker formats are counted as exclusions; this is an explicit eligible universe, not every security or OTC stock.
+
+`POST /api/scan` starts or resumes the latest completed US session (dated using SPY reference bars), then processes three symbols per step. D1 stores progress and the best two candidates on each side. A compare-and-set lease prevents concurrent windows from double advancing. The UI displays final candidates only after every eligible symbol has been attempted. Missing/insufficient/unadjusted data are counted as failures, never replaced with synthetic values. HTTP 429 pauses without losing progress. A completed scan with failures is not full data coverage.
+
+Candidate filters: at least 61 completed adjusted bars, price >= USD 5, 20-day average close times volume >= USD 5 million, then the existing long/short technical checks. Only the latest 260 bars are used consistently. Technical short signals do not verify borrow availability. Source dates and failures remain visible. Public Tencent data has no availability commitment; this implementation is daily research, not a guaranteed realtime entry service.
+
+The website persists results even after the browser closes. Continuing computation requires an active browser runner or the authenticated daily scheduler. `scripts/daily-scan.mjs` takes an ephemeral `MARKETLAB_SITE_TOKEN` environment variable from the Sites connection; never commit or log it. The Codex daily task requires its computer/runtime online and a working Sites connection. No GitHub synchronization is performed by scanning.
+
+Public-source evaluation (2026-09-09):
+- Nasdaq official symbol directory definitions: https://www.nasdaqtrader.com/trader.aspx?id=symboldirdefs
+- TradingView supports screener filters and CSV export; no dependency on an undocumented scraping interface: https://www.tradingview.com/support/solutions/43000718866-tradingview-stock-screener-trade-smarter-not-harder/
+- Alpaca historical SIP queries can use sufficiently delayed end times; account authorization is required: https://docs.alpaca.markets/us/docs/market-data-faq
+- Massive provides a daily whole-US-market aggregate endpoint; access requires its API entitlement: https://massive.com/docs/rest/stocks/aggregates/daily-market-summary
+
+Validation: directory endpoints and representative Tencent symbols tested live; local API start/resume, database persistence, candidate filters and failure handling tested. A full-universe completion and the hosted daily schedule require separate validation; unit tests alone do not establish market-data coverage.

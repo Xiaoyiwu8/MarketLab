@@ -2,15 +2,15 @@
 import type { Series } from '@/lib/engine';
 import { stockCandidates } from '@/lib/candidates';
 
-export default function CandidatePanel({ data, onSelect, onScan, busy }: { data: Series[]; onSelect: (symbol: string) => void; onScan: () => void; busy: boolean }) {
+export default function CandidatePanel({ data, onSelect, onScan, busy }: { data: Series[]; onSelect: (symbol: string) => void; onScan?: () => void; busy: boolean }) {
   const candidates = stockCandidates(data);
   return <section className="panel" style={{border:'2px solid #4f9b86', marginBottom:24}} aria-label="股票买卖点推荐">
-    <div className="row" style={{justifyContent:'space-between'}}><div><p className="eyebrow">STOCK SIGNALS · PAPER ONLY</p><h2>股票买卖点推荐 · 多空各最多两只</h2></div><button onClick={onScan} disabled={busy}>扫描12只常用美股 →</button></div>
-    <p>已检查本次加载的 {candidates.count} 只股票；按日线技术条件筛选、收益风险比排序。不是全市场扫描，数字货币单独分析。</p>
+    <div className="row" style={{justifyContent:'space-between'}}><div><p className="eyebrow">STOCK SIGNALS · PAPER ONLY</p><h2>股票买卖点推荐 · 多空各最多两只</h2></div>{onScan&&<button onClick={onScan} disabled={busy}>重新扫描 →</button>}</div>
+    <p>下方展示扫描筛选出的技术候选，按参考收益风险比排序。完整覆盖数量、排除和失败统计见上方。</p>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:20}}>
       {(['long','short'] as const).map(side => <div key={side} style={{padding:20,border:'1px solid #64748b',borderRadius:12}}>
         <h2>{side === 'long' ? '↗ 买入（做多）' : '↘ 卖出开仓（做空）'} · {candidates[side].length}/2</h2>
-        {!candidates[side].length && <p>暂无符合全部条件的股票，不凑数。可扫描常用美股或输入自己的观察名单。</p>}
+        {!candidates[side].length && <p>本次没有符合全部条件的股票，不凑数。</p>}
         {candidates[side].map(item => {
           const g = item.long!, plan = side === 'long' ? {stop:g.stop,target:g.target,rr:g.rewardRisk,checks:g.checks} : item.short!;
           return <article key={item.series.symbol} style={{borderTop:'1px solid #64748b',paddingTop:12,marginTop:16}}>
