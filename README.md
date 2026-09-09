@@ -73,3 +73,13 @@ Technology: React, TypeScript, vinext / Vite, Tailwind CSS, Cloudflare, and Site
 - Paper-account and other browser records are stored in the original site's localStorage and are not included in the code backup. Export account JSON separately from that site.
 - Backtests and theoretical options valuations have modeling limitations and do not guarantee future performance.
 - Keep API keys, personal account exports, and local environment files out of Git.
+## Disclaimer
+
+Market Lab is provided for educational, informational, and research purposes only. It is a paper-trading platform and does not execute real-money trades. Nothing in this project, including stock rankings, long or short candidates, entry or exit signals, backtests, or options and cryptocurrency analysis, constitutes personalized investment, financial, legal, or tax advice, or an offer or solicitation to buy or sell any asset.
+
+Market data may be delayed, incomplete, inaccurate, or unavailable. Models and signals can be wrong, and historical, hypothetical, or simulated results do not guarantee future performance. Paper trading may not reflect actual liquidity, spreads, slippage, fees, borrowing costs, or execution conditions. Independently verify prices, timestamps, assumptions, and any information before making a decision.
+
+Trading and investing involve the risk of losing capital. Options, leverage, short selling, and cryptocurrencies carry additional risks; some leveraged or short positions can lose more than the initial investment, and short-selling losses can be theoretically unlimited. A displayed candidate or signal is not a guarantee of profit or a determination that a trade is suitable for you.
+
+You are responsible for your own decisions and for complying with applicable laws and regulations. Consult a qualified professional when appropriate. To the extent permitted by applicable law, this software and its content are provided "as is," without warranties, and the authors and contributors disclaim liability for losses arising from their use. Nothing in this disclaimer excludes rights or liabilities that cannot lawfully be excluded.
+
