@@ -1,4 +1,5 @@
 import { clean, type Bar, type Series } from './engine.ts';
+import { isCryptoSymbol } from './assets.ts';
 export type DataRequest = {
   symbol: string;
   provider: 'yahoo' | 'polygon' | 'alpha';
@@ -29,6 +30,7 @@ export async function fetchProvider(
     entitlement = 'historical',
     adjusted = true,
   } = input;
+  if (isCryptoSymbol(symbol)) throw Error('数字货币请使用首页 BTC / ETH / XRP 入口；此数据中心仅支持股票，不能使用同名证券替代。');
   if (
     !/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol) ||
     !['yahoo', 'polygon', 'alpha'].includes(provider)

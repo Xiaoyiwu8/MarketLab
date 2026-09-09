@@ -1,4 +1,6 @@
 import { tencent } from '@/lib/tencent';
+import { isCryptoSymbol } from '@/lib/assets';
+import { cryptoSeries } from '@/lib/crypto';
 import { clean, type Bar } from '@/lib/engine';
 const headers = { 'Cache-Control': 'no-store' };
 async function request(url: string, key?: string, secret?: string) {
@@ -28,9 +30,10 @@ export async function POST(req: Request) {
       throw Error('输入1至12个有效美股代码，以逗号分隔。');
     if (!['yahoo', 'alpaca', 'tencent'].includes(provider))
       throw Error('请选择有效行情源');
-    if (provider === 'alpaca' && (!key || !secret))
+    if (provider === 'alpaca' && symbols.some((s: string) => !isCryptoSymbol(s)) && (!key || !secret))
       throw Error('请先在数据连接中填写 Alpaca Key 和 Secret。');
     if (mode === 'options') {
+      if (symbols.some(isCryptoSymbol)) throw Error('数字货币不支持美股期权链。');
       if (provider !== 'alpaca')
         throw Error('真实期权链需要 Alpaca 数据连接。');
       if (expiry && !/^\d{4}-\d{2}-\d{2}$/.test(expiry))
@@ -64,6 +67,7 @@ export async function POST(req: Request) {
     const results = await Promise.all(
       symbols.map(async (symbol: string) => {
         try {
+          if (isCryptoSymbol(symbol)) return await cryptoSeries(symbol);
           let rows: Bar[] = [],
             quote,
             source = '',
@@ -166,6 +170,7 @@ export async function POST(req: Request) {
             );
           return {
             symbol,
+            assetClass: 'equity',
             bars: report.bars,
             quote,
             source,

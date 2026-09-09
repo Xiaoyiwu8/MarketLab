@@ -23,7 +23,7 @@ const compact = (n: number) =>
       : number(n);
 
 export default function VolumePanel({ series }: { series: Series }) {
-  const s = volumeSummary(series.bars);
+  const s = volumeSummary(series.bars, new Date(), series.assetClass === 'crypto' ? 'UTC' : 'America/New_York');
   if (!s.last)
     return <section className="panel">暂无已完成交易日的成交量数据。</section>;
   const rows = s.completed.slice(-60);
@@ -194,8 +194,7 @@ export default function VolumePanel({ series }: { series: Series }) {
         </Table>
       </details>
       <p className="fineprint">
-        这是当前股票在所选行情源覆盖范围内的成交股数，不是成交金额，也不是整个美股市场总量。IEX
-        数据仅覆盖该交易所；CSV 与演示数据沿用其来源口径。
+        {series.assetClass === 'crypto' ? '成交量为 Coinbase 该现货交易对的基础币数量，按 UTC 日线统计，并非成交美元金额或全市场总量。' : '这是当前股票在所选行情源覆盖范围内的成交股数，不是成交金额，也不是整个美股市场总量。IEX 数据仅覆盖该交易所；CSV 与演示数据沿用其来源口径。'}
       </p>
     </section>
   );

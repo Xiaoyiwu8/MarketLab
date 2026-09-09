@@ -1,5 +1,7 @@
 import type { Bar } from './engine';
+import { isCryptoSymbol } from './assets.ts';
 export async function tencent(symbol: string, quoteOnly = false) {
+  if (isCryptoSymbol(symbol)) throw Error('数字货币必须使用数字货币行情源，不能查询同名美股。');
   async function get(id: string, count: number) {
     const r = await fetch(
       `https://web.ifzq.gtimg.cn/appstock/app/usfqkline/get?param=${encodeURIComponent(id)},day,,,${count},qfq`,

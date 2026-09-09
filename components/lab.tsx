@@ -23,6 +23,8 @@ import NewsPanel from './news-panel';
 import VolumePanel from './volume-panel';
 import TradeGuidancePanel from './trade-guidance-panel';
 import DecisionBanner from './decision-banner';
+import CandidatePanel from './candidate-panel';
+import { isCryptoSymbol } from '@/lib/assets';
 import SectorPanel from './sector-panel';
 import ReviewDashboard from './review-dashboard';
 import SensitivityPanel from './sensitivity-panel';
@@ -274,7 +276,7 @@ function Workspace({
     last = ind.at(-1)!,
     spot = current.quote?.price ?? last.close,
     mode =
-      current.source === '合成演示数据'
+      current.assetClass === 'crypto' ? 'coinbase' : current.source === '合成演示数据'
         ? 'demo'
         : current.source.startsWith('Alpaca')
           ? 'alpaca'
@@ -288,6 +290,7 @@ function Workspace({
                   ? 'alpha'
                   : 'yahoo';
   const optValid =
+    current.assetClass !== 'crypto' &&
     [strike, width, days, iv, rate, dividend].every(Number.isFinite) &&
     strike > width &&
     width > 0 &&
@@ -450,7 +453,7 @@ function Workspace({
           const d = next.find((x) => x.symbol === p.symbol);
           if (!d) return p;
           const src =
-            d.source === '合成演示数据'
+            d.assetClass === 'crypto' ? 'coinbase' : d.source === '合成演示数据'
               ? 'demo'
               : d.source.startsWith('Alpaca')
                 ? 'alpaca'
@@ -513,7 +516,7 @@ function Workspace({
         throw Error('请输入1至12个有效股票代码，例如 AAPL, MSFT, NVDA。');
       let next: Series[];
       let errors: string[] = [];
-      if (provider === 'demo') next = symbols.map(demo);
+      if (provider === 'demo') { if (symbols.some(isCryptoSymbol)) throw Error('数字货币请选择真实行情源，演示模式不生成币价'); next = symbols.map(demo); }
       else {
         const r = await fetch('/api/market', {
           method: 'POST',
@@ -539,7 +542,7 @@ function Workspace({
       setMessage(
         errors.length
           ? `部分加载成功；${errors.join('；')}`
-          : `已更新 ${next.length} 只股票 · ${next[0].source}`,
+          : `已更新 ${next.length} 个资产 · ${next[0].source}`,
       );
       return next.map((x) => ({
         symbol: x.symbol,
@@ -614,6 +617,7 @@ function Workspace({
   }, [provider, key, secret, strategy]);
   function run() {
     try {
+      if (current.assetClass === 'crypto') throw Error('数字货币回测暂未开放；可使用现货模拟账户');
       const r = backtest(bars, strategy, config);
       setResult({
         symbol: current.symbol,
@@ -635,17 +639,18 @@ function Workspace({
           id: crypto.randomUUID(),
           symbol: current.symbol,
           kind: 'stock',
+          assetClass: current.assetClass,
           qty: quantity,
           entry: price,
           mark: spot,
           reserve: 0,
           opened: new Date().toISOString(),
           source: mode,
-          label: '股票',
+          label: current.assetClass === 'crypto' ? '数字货币现货' : '股票',
         };
       setAccount(openPosition(account, p, maxPos, price * quantity * 0.0001));
       setMessage(
-        `模拟买入 ${current.symbol} ${quantity} 股，参考价 ${fmt(spot)}，含5bp滑点、1bp费用。`,
+        `模拟买入 ${current.symbol} ${quantity} ${current.assetClass === 'crypto' ? '枚' : '股'}，参考价 ${fmt(spot)}，含5bp滑点、1bp费用。`,
       );
     } catch (e) {
       setMessage((e as Error).message);
@@ -796,7 +801,7 @@ function Workspace({
           }}
         >
           <label style={{ flex: 1, minWidth: 220 }}>
-            股票代码（最多12只，逗号分隔）
+            股票 / 数字货币代码（最多12个，逗号分隔）
             <input
               aria-label="股票代码"
               placeholder="例如 AAPL, MSFT, NVDA"
@@ -805,7 +810,7 @@ function Workspace({
             />
           </label>
           <Pick
-            label="行情来源"
+            label="股票行情源（数字货币自动使用 Coinbase）"
             value={provider}
             onChange={(v) => {
               setProvider(v);
@@ -823,9 +828,10 @@ function Workspace({
             style={{ alignSelf: 'flex-end' }}
             type="submit"
           >
-            {busy ? '正在获取…' : '分析股票 →'}
+            {busy ? '正在获取…' : '分析资产 →'}
           </button>
         </form>
+        <p>BTC、ETH、XRP 等自动识别为数字货币 USD 现货交易对，采用 UTC 日线，不查询同名股票。</p>
         {mode === 'demo' && (
           <div
             role="alert"
@@ -915,16 +921,17 @@ function Workspace({
         </section>
       )}
       <div hidden={!!failedQuery || busy}>
+        <CandidatePanel data={data} busy={busy} onSelect={setSelected} onScan={() => { const symbols = 'AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,JPM,XOM,PLTR'; setInput(symbols); void load(symbols); }} />
         <DecisionBanner
           series={current}
           onDetails={() => setTab('guidance')}
           riskBlock={
-            riskGate.symbol === current.symbol
+            current.assetClass === 'crypto' ? '数字货币技术观察；美股大盘风控不适用' : riskGate.symbol === current.symbol
               ? riskGate.reason
               : '正在核验大盘与风控'
           }
         />
-        <ShortPanel series={current} />
+        {current.assetClass !== 'crypto' && <ShortPanel series={current} />}
         <RangeCenterPanel series={current} />
         <EventRadar />
         <RateProbability />
@@ -935,7 +942,7 @@ function Workspace({
             void load(symbols);
           }}
         />
-        <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
+        <Tabs value={current.assetClass === 'crypto' && ['backtest', 'options'].includes(tab) ? 'paper' : tab} onValueChange={(v) => setTab(String(v))}>
           <TabsList
             className="tabbar"
             style={{
@@ -955,13 +962,13 @@ function Workspace({
               ['paper', '04 模拟账户'],
               ['settings', '数据与提醒'],
             ].map(([id, label]) => (
-              <TabsTrigger key={id} value={id} style={{ padding: '8px 12px' }}>
+              <TabsTrigger disabled={current.assetClass === 'crypto' && ['backtest', 'options'].includes(id)} key={id} value={id} style={{ padding: '8px 12px' }}>
                 {label}
               </TabsTrigger>
             ))}
           </TabsList>
           <TabsContent value="research" keepMounted>
-            <ReviewDashboard series={current} onRisk={setRiskGate} />
+            {current.assetClass !== 'crypto' ? <ReviewDashboard series={current} onRisk={setRiskGate} /> : <p className="notice">数字货币为 24/7 现货市场；美股大盘风控与期权模型不适用。可查看成交量、支撑压力并进行现货模拟。</p>}
             <DataCenter
               data={data}
               onQuotes={(quotes, source) =>
@@ -1001,8 +1008,7 @@ function Workspace({
           <TabsContent value="analysis">
             <TradeGuidancePanel series={current} />
             <VolumePanel series={current} />
-            <StockResearch symbol={current.symbol} />
-            <NewsPanel symbol={current.symbol} />
+            {current.assetClass !== 'crypto' && <><StockResearch symbol={current.symbol} /><NewsPanel symbol={current.symbol} /></>}
             <Metrics
               items={[
                 [
@@ -1624,13 +1630,14 @@ function Workspace({
             />
             <div className="grid2">
               <section className="panel">
-                <h2>{current.symbol} · 股票模拟买入</h2>
+                <h2>{current.symbol} · {current.assetClass === 'crypto' ? '数字货币现货' : '股票'}模拟买入</h2>
                 <div className="formgrid">
                   <Num
-                    label="股票数量（整股）"
+                    label={current.assetClass === 'crypto' ? '数字货币数量（支持小数）' : '股票数量（整股）'}
                     value={quantity}
                     onChange={setQuantity}
-                    min={1}
+                    min={current.assetClass === 'crypto' ? 0.00000001 : 1}
+                    step={current.assetClass === 'crypto' ? 0.00000001 : 1}
                   />
                   <button
                     disabled={!ready}
@@ -2070,7 +2077,7 @@ export default function Lab() {
       )
         throw Error('请输入1至12个有效美股代码。');
       let data: Series[];
-      if (provider === 'demo') data = symbols.map(demo);
+      if (provider === 'demo') { if (symbols.some(isCryptoSymbol)) throw Error('数字货币请选择真实行情源，演示模式不生成币价'); data = symbols.map(demo); }
       else {
         const r = await fetch('/api/market', {
           method: 'POST',
@@ -2165,3 +2172,4 @@ export default function Lab() {
     </main>
   );
 }
+

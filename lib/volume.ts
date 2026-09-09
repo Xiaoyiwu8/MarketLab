@@ -1,8 +1,8 @@
 import type { Bar } from './engine';
 
-export function volumeSummary(bars: Bar[], now = new Date()) {
+export function volumeSummary(bars: Bar[], now = new Date(), timeZone = 'America/New_York') {
   const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

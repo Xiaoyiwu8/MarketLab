@@ -47,3 +47,13 @@ test('APPL missing mapping returns actionable AAPL correction without substituti
     globalThis.fetch = original;
   }
 });
+
+test('bare BTC cannot reach Tencent equity lookup', async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({data: {}})); };
+  try {
+    await assert.rejects(tencent('BTC'), /数字货币/);
+    assert.equal(calls, 0);
+  } finally { globalThis.fetch = original; }
+});

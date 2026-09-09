@@ -2,7 +2,7 @@ import type { Series } from './engine.ts';
 import { volumeSummary } from './volume.ts';
 export function rangeCenter(series: Series, window = 40, now = new Date()) {
   if (![20, 40, 60].includes(window)) return null;
-  const { completed: bars, ratio } = volumeSummary(series.bars, now);
+  const { completed: bars, ratio } = volumeSummary(series.bars, now, series.assetClass === 'crypto' ? 'UTC' : 'America/New_York');
   if (bars.length < window + 1) return null;
   const prior = bars.slice(-window - 1, -1),
     last = bars.at(-1)!,

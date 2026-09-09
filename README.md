@@ -168,3 +168,11 @@ npm run dev
 
 模拟账户、宏观事件和利率概率记录保存在原站点的浏览器 localStorage 中，未包含在此仓库；模拟账户可在原站点导出 JSON 另行备份。本地地址不会自动共享原站点的浏览器记录。
 .env 文件应仅本地保存，不提交 API 密钥。当前未配置 GitHub / Gitee 远程仓库。
+
+## Stock candidates and cryptocurrency
+
+The homepage shows at most two long and two short technical candidates from the loaded equity watchlist. Use the 12-stock scan button or enter up to 12 symbols. Candidates must satisfy all existing trend, price/volume, RSI and reward/risk rules; empty results are valid. Rankings use reward/risk, not predicted win rates. Signals use completed daily candles and require current-price, market and event checks. A long exit is not a short entry. Paper short selling is not supported.
+
+BTC, ETH, XRP, SOL, DOGE, ADA, LTC, BCH, AVAX, LINK and DOT are reserved cryptocurrency aliases, also accepted with `-USD`. These use Coinbase Exchange USD spot candles and the latest trade, independent of the selected stock provider. A crypto request never falls back to an identically named equity. Candles follow UTC and trade every day; API failures remain errors. This is a single-exchange reference, not a consolidated or executable quote. Unsupported pairs and crypto in demo mode are rejected.
+
+The paper account supports fractional crypto spot quantities, with the existing illustrative 5bp slippage and 1bp fee assumptions (not exchange fees). Crypto backtests and equity options are disabled; US market risk checks and company research do not apply. Local browser account storage and export remain unchanged. Legacy positions tagged as stocks are not reinterpreted as crypto.

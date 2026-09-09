@@ -7,6 +7,7 @@ export type Bar = {
   volume: number;
 };
 export type Series = {
+  assetClass?: 'equity' | 'crypto';
   symbol: string;
   bars: Bar[];
   source: string;
@@ -607,6 +608,7 @@ export function makeLegs(
   }
 }
 export type Position = {
+  assetClass?: 'equity' | 'crypto';
   id: string;
   symbol: string;
   kind: 'stock' | 'option';
@@ -651,7 +653,8 @@ export function openPosition(
 ) {
   if (a.halted) throw Error('账户已触发回撤熔断，禁止开仓。');
   if (
-    !Number.isInteger(p.qty) ||
+    !Number.isFinite(p.qty) ||
+    (!(p.assetClass === 'crypto' && p.kind === 'stock') && !Number.isInteger(p.qty)) ||
     p.qty <= 0 ||
     !Number.isFinite(p.entry) ||
     !Number.isFinite(p.reserve) ||

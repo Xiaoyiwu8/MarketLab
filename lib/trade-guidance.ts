@@ -1,7 +1,7 @@
 import { indicators, type Series } from './engine.ts';
 import { volumeSummary } from './volume.ts';
 export function tradeGuidance(series: Series, now = new Date()) {
-  const { completed: bars, ratio } = volumeSummary(series.bars, now);
+  const { completed: bars, ratio } = volumeSummary(series.bars, now, series.assetClass === 'crypto' ? 'UTC' : 'America/New_York');
   if (bars.length < 61) return null;
   const last = bars.at(-1)!;
   const prior = bars.slice(-61, -1);
@@ -54,7 +54,7 @@ export function tradeGuidance(series: Series, now = new Date()) {
   const rewardRisk = risk > 0 ? (target - last.close) / risk : null;
   const stale =
     (now.getTime() - new Date(last.date + 'T00:00:00Z').getTime()) / 86400000 >
-    7;
+    (series.assetClass === 'crypto' ? 2 : 7);
   const demo = /合成|演示/.test(series.source);
   const eligible = !stale && !demo && atr > 0;
   const checks = [
@@ -86,7 +86,7 @@ export function tradeGuidance(series: Series, now = new Date()) {
   const reason = demo
     ? '合成演示数据，不生成真实交易建议。'
     : stale
-      ? '日线距今超过7天，请更新行情。'
+      ? '日线已过期，请更新行情。'
       : atr === 0
         ? '无波动样本，无法建立风险计划。'
         : breakdown
