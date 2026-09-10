@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test tests/engine.test.ts tests/providers.test.ts tests/volume.test.ts tests/guidance.test.ts tests/ticker.test.ts tests/review.test.ts tests/event-time.test.ts tests/range-center.test.ts tests/crypto.test.ts tests/candidates.test.ts tests/market-scan.test.ts tests/maturity.test.ts",
+    "test": "node --experimental-strip-types --test tests/engine.test.ts tests/providers.test.ts tests/volume.test.ts tests/guidance.test.ts tests/ticker.test.ts tests/review.test.ts tests/event-time.test.ts tests/range-center.test.ts tests/crypto.test.ts tests/candidates.test.ts tests/market-scan.test.ts tests/maturity.test.ts tests/reversal.test.ts",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "lint": "oxlint",
     "format": "oxfmt"
