@@ -11,10 +11,10 @@ function fixture(symbol:string,dir:number):Series {
   });
   return {symbol,bars,source:'test fixture',asOf:bars.at(-1)!.date,adjustment:'none',warnings:[]};
 }
-test('both directions produce at most two unique candidates with all checks passing',()=>{
+test('oscillating fixtures cannot fill mature candidate slots',()=>{
   const stocks=[fixture('AAA',1),fixture('BBB',1),fixture('CCC',1),fixture('DDD',-1),fixture('EEE',-1),fixture('FFF',-1)];
   const r=stockCandidates([...stocks,stocks[0]],now);
-  assert.equal(r.count,6); assert.equal(r.long.length,2); assert.equal(r.short.length,2);
+  assert.equal(r.count,6); assert.equal(r.long.length,0); assert.equal(r.short.length,0);
   assert.ok(r.long.every(x=>x.long!.checks.every(c=>c.pass)));
   assert.ok(r.short.every(x=>x.short!.checks.every(c=>c.pass)));
   assert.ok(r.short.every(x=>x.short!.stop>x.short!.g.last.close));
