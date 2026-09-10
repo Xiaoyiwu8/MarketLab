@@ -17,7 +17,7 @@ export default function MarketScanPanel({onSelect}:{onSelect:(series:Series)=>vo
   }
   const results=scan?[...scan.long,...scan.short]:[];
   return <section className="panel" style={{border:'2px solid #4f9b86',marginBottom:24}}>
-    <p className="eyebrow">DAILY US MARKET SCAN · PAPER ONLY</p><h2>每日全市场选股 · 确认后多空各最多2只</h2>
+    <p className="eyebrow">DAILY US MARKET SCAN · PAPER ONLY</p><h2>每日全市场选股 · 左侧2多2空 / 右侧2多2空</h2>
     <p>从 Nasdaq 官方上市目录逐一检查美股普通股与普通股 ADR。排除 ETF、优先股、权证、基金及不支持的代码；价格低于 $5 或近20日平均成交额低于 $500万的不推荐。不是固定股票池。</p>
     <div className="row"><button disabled={running} onClick={()=>void start()}>{running?'正在逐批扫描…':'开始 / 继续今日全市场扫描'}</button>{running&&<button className="secondary" onClick={()=>{stop.current=true;}}>当前批次后暂停</button>}<button className="secondary" onClick={()=>void refresh()}>刷新结果</button></div>
     {error&&<p role="alert">{error}。已保存的进度保留，未改用演示结果。</p>}
@@ -26,7 +26,7 @@ export default function MarketScanPanel({onSelect}:{onSelect:(series:Series)=>vo
       <progress style={{width:'100%'}} value={scan.cursor} max={scan.total} aria-label="全市场扫描进度" />
       <p>{scan.cursor} / {scan.total} 只 · 有效历史 {scan.analyzed} · 流动性/价格排除 {scan.ineligible} · 数据失败 {scan.failed} · 目录预先排除 {scan.excluded}</p>
       <p>更新于 {scan.updatedAt} · 腾讯公共延迟日线。数据失败意味着覆盖不完整；候选仅从成功获取并符合条件的股票中选出。</p>
-      {scan.ruleVersion!==SIGNAL_VERSION?<p>旧版结果已停用。请开始扫描，按左侧 / 右侧合并规则重新检查全名单。</p>:scan.status==='complete'?<CandidatePanel data={results} busy={false} onSelect={symbol=>{const s=results.find(x=>x.symbol===symbol);if(s)onSelect(s);}} />:<p>完成全名单检查后才展示最终两多两空，避免把先扫描到的股票误认为全市场最佳候选。</p>}
+      {scan.ruleVersion!==SIGNAL_VERSION?<p>旧版结果已停用。请开始扫描，按左侧 / 右侧四组规则重新检查全名单。</p>:scan.status==='complete'?<CandidatePanel data={results} busy={false} onSelect={symbol=>{const s=results.find(x=>x.symbol===symbol);if(s)onSelect(s);}} />:<p>完成全名单检查后才展示四组候选（每组最多2只），避免把先扫描到的股票误认为全市场最佳候选。</p>}
       {scan.failed>0&&<details><summary>查看失败原因（前100条）</summary><ul>{scan.errors.map(e=><li key={e.symbol}>{e.symbol}：{e.reason}</li>)}</ul></details>}
       <details><summary>名单来源与筛选口径</summary><p>{scan.directoryStamps.join(' / ')}</p><a href="https://www.nasdaqtrader.com/trader.aspx?id=symboldirdefs" target="_blank" rel="noreferrer">Nasdaq 官方目录说明</a><p>右侧要求突破回踩和趋势确认；左侧要求横盘区间、高低位置、假突破收回和独立日线反转。各策略条件及收益风险条件全部满足后，按参考收益风险比排序。排序不是胜率；入场仍需核对当前价格及事件。做空标的不代表券商有可借股票。</p></details>
     </>}

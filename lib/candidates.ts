@@ -33,7 +33,7 @@ export function stockCandidates(data: Series[], now = new Date()) {
       }
     }
     // A symbol occupies at most one slot per side. Prefer the right-side setup
-    // when both qualify; do not add separate quotas for alternative strategies.
+    // when both qualify, so the same stock does not fill two strategy slots.
     if(long && !long.buy && leftLong?.confirmed){
       long.buy=true;long.stop=leftLong.stop;long.target=leftLong.target;long.rewardRisk=leftLong.rr;long.checks=leftLong.checks;
       longStrategy=leftLong.strategy;longEvidence={date:leftLong.setupDate,boundary:leftLong.boundary};
@@ -44,9 +44,10 @@ export function stockCandidates(data: Series[], now = new Date()) {
     }
     return {series,long,short,longSetup,shortSetup,longStrategy,shortStrategy,longEvidence,shortEvidence};
   });
-  return {
-    count: stocks.length,
-    long: ranked.filter(x => x.long?.buy).sort((a,b) => (b.long!.rewardRisk! - a.long!.rewardRisk!) || a.series.symbol.localeCompare(b.series.symbol)).slice(0,2),
-    short: ranked.filter(x => x.short?.enter).sort((a,b) => (b.short!.rr! - a.short!.rr!) || a.series.symbol.localeCompare(b.series.symbol)).slice(0,2),
-  };
+  const longs=ranked.filter(x=>x.long?.buy).sort((a,b)=>(b.long!.rewardRisk!-a.long!.rewardRisk!)||a.series.symbol.localeCompare(b.series.symbol));
+  const shorts=ranked.filter(x=>x.short?.enter).sort((a,b)=>(b.short!.rr!-a.short!.rr!)||a.series.symbol.localeCompare(b.series.symbol));
+  const left={long:longs.filter(x=>x.longStrategy.startsWith('左侧')).slice(0,2),short:shorts.filter(x=>x.shortStrategy.startsWith('左侧')).slice(0,2)};
+  const right={long:longs.filter(x=>x.longStrategy.startsWith('右侧')).slice(0,2),short:shorts.filter(x=>x.shortStrategy.startsWith('右侧')).slice(0,2)};
+  // Preserve the union of all four groups through incremental scan batches.
+  return {count:stocks.length,left,right,long:[...left.long,...right.long],short:[...left.short,...right.short]};
 }

@@ -9,7 +9,7 @@ test('old completed scans restart from zero under the new rules',async()=>{
   const listings=['AAA','BBB','CCC','DDD'].map(symbol=>({symbol,name:symbol,exchange:'N'}));
   const result=await advanceScan(old,listings,async symbol=>series(symbol),now);
   assert.equal(result.cursor,3);assert.equal(result.analyzed,3);assert.equal(result.long.length,0);
-  assert.equal(result.ruleVersion,'retest-reversal-v2');assert.equal(result.status,'running');
+  assert.equal(result.ruleVersion,'four-groups-v3');assert.equal(result.status,'running');
 });
 function state(total=4):ScanState{return {date:'2026-09-08',startedAt:now.toISOString(),updatedAt:now.toISOString(),status:'running',total,cursor:0,analyzed:0,ineligible:0,failed:0,excluded:0,directoryStamps:[],errors:[],long:[],short:[]};}
 function series(symbol:string):Series{const bars=Array.from({length:100},(_,i)=>{const c=100+.06*i+3*Math.sin(i*.7+1.2);return {date:new Date(Date.UTC(2026,5,1+i)).toISOString().slice(0,10),open:c-.4,high:c+.5,low:c-.5,close:c,volume:i===99?2000000:1000000};});return {symbol,bars,source:'test fixture',asOf:'2026-09-08',adjustment:'qfqday',warnings:[]};}
