@@ -1,7 +1,7 @@
 import type { Series } from './engine.ts';
 import { tradeGuidance } from './trade-guidance.ts';
 
-export const SIGNAL_VERSION = 'four-groups-v3';
+export const SIGNAL_VERSION = 'signal-window-v4';
 
 // A daily breakout/retest approximation, NOT a Chan-theory third buy/sell point.
 // Freeze the box at the first qualifying breakout; never move it to rescue a failure.
@@ -27,28 +27,29 @@ export function matureSetup(series: Series, side: 'long' | 'short', now = new Da
     const after = bars.slice(i+1);
     const base = {boundary:sign*edge, breakoutDate:bars[i].date, atr};
     // Strict rule: returning inside the frozen box invalidates this attempt.
-    if (after.some(b=>b.low<edge)) return {...base,state:'invalid' as const,confirmed:false,reason:'突破后重新进入原区间，本次结构失效'};
-    if (!after.length) return {...base,state:'waiting' as const,confirmed:false,reason:'只有突破，等待后续回踩'};
+    if (after.some(b=>b.low<edge)) continue;
+    if (!after.length) continue;
     const retest = after.findIndex(b=>b.low<=edge+0.5*atr && b.close<=bars[i].close);
-    if (retest<0) return {...base,state:'waiting' as const,confirmed:false,reason:'尚未回踩原区间边界'};
+    if (retest<0) continue;
     const r = i+1+retest;
     const trigger = (k:number) => bars[k].close>Math.max(...bars.slice(r,k).map(b=>b.high)) && bars[k].close>bars[k].open;
     // A separate later bar must confirm. Do not reissue an old trigger every day.
-    const earlier = bars.slice(r+1,-1).some((_,k)=>trigger(r+1+k));
-    if (r>=bars.length-1 || !trigger(bars.length-1) || earlier)
-      return {...base,state:'waiting' as const,confirmed:false,reason:earlier?'确认信号已过去，不重复追价':'回踩后尚未再次转强/转弱确认'};
-    if (last.close-edge>atr) return {...base,state:'waiting' as const,confirmed:false,reason:'价格距原边界超过1个区间ATR，不追价'};
-    const stopN = Math.min(...bars.slice(r).map(b=>b.low))-0.25*atr;
+    const confirmation=bars.findIndex((_,k)=>k>r && trigger(k));
+    if(confirmation<0 || bars.length-1-confirmation>2) continue;
+    if (last.close-edge>atr) continue;
+    const stopN = Math.min(...bars.slice(r,confirmation+1).map(b=>b.low))-0.25*atr;
     // Only pre-breakout, already-confirmed swing levels may supply a target.
     const history = bars.slice(Math.max(0,i-120),i);
-    const targets = history.filter((b,k)=>k>=2 && k<history.length-2 && b.high>last.close &&
+    const targets = history.filter((b,k)=>k>=2 && k<history.length-2 && b.high>bars[confirmation].close &&
       history.slice(k-2,k+3).every(x=>x.high<=b.high)).map(b=>b.high);
     const targetN = targets.length ? Math.min(...targets) : null;
+    if(bars.slice(confirmation+1).some(b=>b.low<=stopN || (targetN!==null && b.high>=targetN))) continue;
+    const baseline=bars.slice(confirmation-20,confirmation).reduce((s,b)=>s+b.volume,0)/20;
     const risk = last.close-stopN;
     const rr = targetN!==null && risk>0 ? (targetN-last.close)/risk : null;
     return {...base,state:'confirmed' as const,confirmed:true,reason:'突破、独立回踩和后续确认均成立',
-      retestDate:bars[r].date,confirmationDate:last.date,stop:sign*stopN,
+      retestDate:bars[r].date,confirmationDate:bars[confirmation].date,age:bars.length-1-confirmation,volumeConfirmed:baseline>0&&bars[confirmation].volume/baseline>=1.2,stop:sign*stopN,
       target:targetN===null?null:sign*targetN,rr};
   }
-  return {state:'waiting' as const,confirmed:false,boundary:undefined,breakoutDate:undefined,reason:'近期未形成可验证的区间突破结构'};
+  return {state:'waiting' as const,confirmed:false,boundary:undefined,breakoutDate:undefined,reason:'未找到仍有效的突破回踩结构（含失效、未确认或超出入场范围）'};
 }

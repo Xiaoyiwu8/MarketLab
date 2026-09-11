@@ -42,7 +42,7 @@ for(const side of ['long','short'] as const){
   });
   test(`${side}: return inside the original box invalidates the attempt`,()=>{
     const s=sample(side);if(side==='long')s.bars.at(-2)!.low=101.9;else s.bars.at(-2)!.high=98.1;
-    assert.equal(matureSetup(s,side,now)?.state,'invalid');
+    assert.equal(matureSetup(s,side,now)?.confirmed,false);
   });
   test(`${side}: unfinished confirmation and stale history cannot qualify`,()=>{
     const s=sample(side);assert.notEqual(matureSetup(s,side,new Date(s.asOf+'T12:00:00Z'))?.confirmed,true);

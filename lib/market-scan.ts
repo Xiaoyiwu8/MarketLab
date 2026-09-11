@@ -8,6 +8,7 @@ export type ScanState = {
   total:number; cursor:number; analyzed:number; ineligible:number; failed:number;
   excluded:number; directoryStamps:string[]; errors:{symbol:string;reason:string}[];
   long:Series[]; short:Series[];
+  rejections?:Record<string,Record<string,number>>;
 };
 export async function scanSeries(symbol:string, date:string):Promise<Series> {
   const t=await tencent(symbol);
@@ -18,7 +19,7 @@ export async function scanSeries(symbol:string, date:string):Promise<Series> {
   return {symbol,assetClass:'equity',bars:bars.slice(-260),asOf:date,source:'腾讯公共美股行情（延迟）',adjustment:t.adjustment,quote:t.quote,warnings:['公共行情覆盖可能不完整；不代表实时可成交价格。']};
 }
 export async function advanceScan(state:ScanState, listings:Listing[], loader=scanSeries, now=new Date()):Promise<ScanState> {
-  if (state.ruleVersion !== SIGNAL_VERSION) state={...state,ruleVersion:SIGNAL_VERSION,cursor:0,analyzed:0,ineligible:0,failed:0,errors:[],long:[],short:[],status:'running',startedAt:now.toISOString()};
+  if (state.ruleVersion !== SIGNAL_VERSION) state={...state,ruleVersion:SIGNAL_VERSION,cursor:0,analyzed:0,ineligible:0,failed:0,errors:[],long:[],short:[],rejections:{},status:'running',startedAt:now.toISOString()};
   const next:ScanState={...state,errors:[...state.errors],long:[...state.long],short:[...state.short],updatedAt:now.toISOString()};
   const batch=listings.slice(state.cursor,state.cursor+3);
   const results=await Promise.all(batch.map(async listing=>{try{return {listing,series:await loader(listing.symbol,state.date)};}catch(e){return {listing,error:e instanceof Error?e.message:'行情失败'};}}));
@@ -34,6 +35,12 @@ export async function advanceScan(state:ScanState, listings:Listing[], loader=sc
     eligible.push(r.series);
   }
   const ranked=stockCandidates([...next.long,...next.short,...eligible],now);
+  next.rejections={...state.rejections};
+  for(const [group,reasons] of Object.entries(stockCandidates(eligible,now).rejections)){
+    const totals={...next.rejections[group]};
+    for(const [reason,count] of Object.entries(reasons))totals[reason]=(totals[reason]??0)+count;
+    next.rejections[group]=totals;
+  }
   next.long=ranked.long.map(x=>x.series);next.short=ranked.short.map(x=>x.series);
   next.cursor+=batch.length;next.status=next.cursor>=next.total?'complete':'running';
   return next;

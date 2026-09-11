@@ -30,5 +30,6 @@ test('incremental scan retains all four groups, including later batches',async()
   while(state.status!=='complete')state=await advanceScan(state,listings,async symbol=>data.find(s=>s.symbol===symbol)!,now);
   const r=stockCandidates([...state.long,...state.short],now);
   assert.equal(state.long.length,4);assert.equal(state.short.length,4);
+  for(const reasons of Object.values(state.rejections!))assert.equal(Object.values(reasons).reduce((a,b)=>a+b,0),data.length);
   for(const group of [r.left,r.right]){assert.equal(group.long.length,2);assert.equal(group.short.length,2);}
 });
