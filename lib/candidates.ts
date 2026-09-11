@@ -38,6 +38,8 @@ export function stockCandidates(data: Series[], now = new Date()) {
       '右侧做多':!long?.eligible?'数据不可用或过期':!longSetup?.confirmed?(longSetup?.reason??'结构不足'):(long.checks.find(c=>!c.pass)?.label??'符合条件（排序前）'),
       '右侧做空':!short?.g.eligible?'数据不可用或过期':!shortSetup?.confirmed?(shortSetup?.reason??'结构不足'):(short.checks.find(c=>!c.pass)?.label??'符合条件（排序前）'),
     };
+    const rightLongChecks=long?.checks.map(c=>({...c})) ?? [];
+    const rightShortChecks=short?.checks.map(c=>({...c})) ?? [];
     // A symbol occupies at most one slot per side. Prefer the right-side setup
     // when both qualify, so the same stock does not fill two strategy slots.
     if(long && !long.buy && leftLong?.confirmed){
@@ -48,7 +50,7 @@ export function stockCandidates(data: Series[], now = new Date()) {
       short.enter=true;short.stop=leftShort.stop;short.target=leftShort.target;short.rr=leftShort.rr;short.checks=leftShort.checks;
       shortStrategy=leftShort.strategy;shortEvidence={date:leftShort.setupDate,boundary:leftShort.boundary,confirmationDate:leftShort.confirmationDate};
     }
-    return {series,long,short,longSetup,shortSetup,longStrategy,shortStrategy,longEvidence,shortEvidence,diagnostic};
+    return {series,long,short,longSetup,shortSetup,leftLong,leftShort,rightLongChecks,rightShortChecks,longStrategy,shortStrategy,longEvidence,shortEvidence,diagnostic};
   });
   const longs=ranked.filter(x=>x.long?.buy).sort((a,b)=>(b.long!.rewardRisk!-a.long!.rewardRisk!)||a.series.symbol.localeCompare(b.series.symbol));
   const shorts=ranked.filter(x=>x.short?.enter).sort((a,b)=>(b.short!.rr!-a.short!.rr!)||a.series.symbol.localeCompare(b.series.symbol));
@@ -59,5 +61,5 @@ export function stockCandidates(data: Series[], now = new Date()) {
   for(const item of ranked)for(const [group,reason] of Object.entries(item.diagnostic)){
     rejections[group]??={};rejections[group][reason]=(rejections[group][reason]??0)+1;
   }
-  return {count:stocks.length,rejections,left,right,long:[...left.long,...right.long],short:[...left.short,...right.short]};
+  return {count:stocks.length,rejections,evaluated:ranked,left,right,long:[...left.long,...right.long],short:[...left.short,...right.short]};
 }

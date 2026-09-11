@@ -1,3 +1,13 @@
+## Representative watchlists (v5)
+
+Each of the four strategy/direction groups displays up to two representative stocks. Technical qualifiers rank first, followed by near-ready and incomplete observations. These are research candidates, not eight actionable trade recommendations. Same-direction symbols are deduplicated; opposite-direction appearances describe independent scenarios.
+
+Condition completion is the unweighted passed-check count divided by the total number of checks, rounded to a whole percent. It is not win probability or expected return. Near-ready requires a confirmed structure with only one other missing check. Missing critical confirmation remains incomplete regardless of percentage. 100% covers technical checks only; current entry price, nearby obstacles, market/events and borrow availability still need verification. Strategy parameters and profitability have not been validated by a complete backtest.
+
+Each card expands its own strategy conditions. Generic trend indicators are a separate comparison, not the selected reversal strategy's exit instructions. Unconfirmed candidates show missing conditions and no actionable entry/stop/target plan. Data must be fresh, adjusted equity history with sufficient bars, price at least $5 and 20-day average dollar volume at least $5 million. Lack of eligible or distinct symbols leaves slots empty.
+
+Incremental scans persist up to four alternatives per group (a deduplicated pool of at most sixteen series), ensuring later batches do not discard alternatives needed for directional deduplication. The old qualified-only lists and rejection counts remain separate. The rule version invalidates old cached scans; a full new scan is needed. Historical documentation below describes earlier versions.
+
 # Market Lab — 美股与期权研究台
 
 ## 当前规则：信号有效期与排除统计（signal-window-v4）

@@ -1,7 +1,7 @@
 import type { Series } from './engine.ts';
 import { tradeGuidance } from './trade-guidance.ts';
 
-export const SIGNAL_VERSION = 'signal-window-v4';
+export const SIGNAL_VERSION = 'representatives-v5';
 
 // A daily breakout/retest approximation, NOT a Chan-theory third buy/sell point.
 // Freeze the box at the first qualifying breakout; never move it to rescue a failure.
