@@ -45,14 +45,14 @@ export function trend(b: Bar[], n: number) {
           : '震荡',
   };
 }
-export function weeks(b: Bar[], now = new Date()) {
+export function weeks(b: Bar[], now = new Date(), timeZone = 'America/New_York') {
   const monday = (date: string) => {
     const d = new Date(date + 'T00:00:00Z');
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
     return d.toISOString().slice(0, 10);
   };
   const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

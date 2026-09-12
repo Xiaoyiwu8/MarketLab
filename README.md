@@ -1,3 +1,21 @@
+## Statistical channel label
+
+The active asset shows separate charts labeled daily (20 trading sessions) and weekly (20 completed weeks), each with close prices, a statistical trend line and parallel bands. Both exclude the latest observation from fitting and require 21 completed bars. Weekly OHLCV is grouped from Monday and conservatively excludes the current calendar week, using New York dates for equities and UTC dates for crypto. Direction requires R-squared at least 0.35 and absolute slope per bar at least 0.1% of mean price; daily and weekly directions may differ. Bands use twice residual standard deviation with a minimum half-width of half the average bar range. Latest-close boundary crossings are reported without refitting to rescue the breakout. Observation dates and fitting windows are displayed. These are descriptive, unvalidated statistical thresholds, not confirmed discretionary trend lines or entry signals.
+
+## Per-stock volume explanation
+
+The active asset shows the latest completed-session volume as a percentage of the preceding twenty-session mean (excluding the compared session), its price change and volume classification. At least 120% is described as expansion and at most 80% as contraction. Missing/zero baselines remain unavailable. This is not live intraday volume, investor identity, net fund flow or a trade signal; the provider/date are shown. Calendar reminders and company relationships sit collapsed at the bottom of the workspace.
+
+## Local scanning, earnings and investment context (2026-09-12)
+
+Local Vite development requests from an exact loopback Origin can run the scanner without hosted authentication. This exception is gated by Vite's build-time DEV flag; production still requires the hosted authenticated-user header. Cross-origin requests remain rejected. Local D1 progress is separate from hosted progress.
+
+The collapsed reminder after scan results shows the following Monday-Sunday in America/New_York time. It loads Nasdaq's public earnings calendar and includes market-cap snapshots of at least USD 30 million (inclusive). Dates are provider estimates, not verified issuer commitments. Missing caps are counted separately. Missing/invalid daily payloads are coverage failures, never silently interpreted as no earnings. A five-minute server cache and thirty-minute refresh while the page is open limit requests. This is a page reminder, not a background notification service.
+
+Candidate cards combine technical checks with a separate event/price-risk view: upcoming calendar matches, selected dated ORCL/TSM official disclosures, recent gap/range shocks, and breakouts returning inside their original twenty-session range. Event and volatility flags suppress the displayed entry plan without turning a technical completion percentage into a probability. The initial two-session post-announcement and ATR thresholds are unvalidated observation rules. Other earnings dates, fundamentals, industry, macro, borrow and breaking news are not comprehensively verified. Recent-close sparklines are supplemental, not intraday charts.
+
+The collapsed investment-relationship list records directional, sourced links for NVDA/LITE, NVDA/COHR, NVDA/NBIS, Google/MRVL and Google/Anthropic. Investment announcements, purchase commitments, warrants and cloud partnerships are distinguished. It is a manually reviewed list as of 2026-09-12, not a live holdings database; current holdings percentages are not asserted. Neither relationships nor calendar data automatically add technical-score points.
+
 ## Representative watchlists (v5)
 
 Each of the four strategy/direction groups displays up to two representative stocks. Technical qualifiers rank first, followed by near-ready and incomplete observations. These are research candidates, not eight actionable trade recommendations. Same-direction symbols are deduplicated; opposite-direction appearances describe independent scenarios.

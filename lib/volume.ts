@@ -1,5 +1,14 @@
 import type { Bar } from './engine';
 
+export function volumeNarrative(bars:Bar[],now=new Date(),timeZone='America/New_York'){
+  const s=volumeSummary(bars,now,timeZone);
+  const priceChange=s.last&&s.previous&&s.previous.close>0?s.last.close/s.previous.close-1:null;
+  const ratioPct=s.ratio===null?null:s.ratio*100;
+  const volumeState=s.ratio===null?'均量不可计算':s.ratio>=1.2?'放量':s.ratio<=0.8?'缩量':'接近均量';
+  const priceState=priceChange===null?'涨跌不可计算':priceChange>0?'上涨':priceChange<0?'下跌':'持平';
+  return {...s,ratioPct,priceChange,volumeState,priceState};
+}
+
 export function volumeSummary(bars: Bar[], now = new Date(), timeZone = 'America/New_York') {
   const today = new Intl.DateTimeFormat('en-CA', {
     timeZone,

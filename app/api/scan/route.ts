@@ -1,21 +1,19 @@
+/// <reference types="vite/client" />
 import { SIGNAL_VERSION } from '@/lib/maturity';
 import { env } from 'cloudflare:workers';
 import { stockUniverse, type Listing } from '@/lib/universe';
 import { advanceScan, type ScanState } from '@/lib/market-scan';
 import { tencent } from '@/lib/tencent';
+import { authorizeScan } from '@/lib/scan-auth';
 const headers={'Cache-Control':'no-store'};
 function database(){const db=(env as unknown as {DB?:D1Database}).DB;if(!db)throw Error('扫描数据库尚未配置');return db;}
-function authorize(req:Request){
-  if(!req.headers.get('oai-authenticated-user-id'))throw Error('请先登录 Market Lab 再运行扫描');
-  const origin=req.headers.get('Origin');if(origin && origin!==new URL(req.url).origin)throw Error('不允许跨站启动扫描');
-}
 export async function GET(){
   try{const row=await database().prepare('SELECT state FROM market_scan ORDER BY date DESC LIMIT 1').first<{state:string}>();return Response.json({scan:row?JSON.parse(row.state):null},{headers});}
   catch(e){return Response.json({error:(e as Error).message},{status:503,headers});}
 }
 export async function POST(req:Request){
   try{
-    authorize(req);const db=database(),{action,date}=await req.json() as {action:string;date?:string};
+    authorizeScan(req,import.meta.env.DEV);const db=database(),{action,date}=await req.json() as {action:string;date?:string};
     if(action==='start'){
       const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       const reference=await tencent('SPY'), target=reference.rows.filter(b=>b.date<today).at(-1)?.date;

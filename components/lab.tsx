@@ -24,6 +24,10 @@ import VolumePanel from './volume-panel';
 import TradeGuidancePanel from './trade-guidance-panel';
 import DecisionBanner from './decision-banner';
 import MarketScanPanel from './market-scan-panel';
+import TradingNote from './trading-note';
+import EarningsCalendarPanel from './earnings-calendar-panel';
+import CompanyLinksPanel from './company-links-panel';
+import type {EarningsWeek} from '@/lib/earnings-calendar';
 import { isCryptoSymbol } from '@/lib/assets';
 import SectorPanel from './sector-panel';
 import ReviewDashboard from './review-dashboard';
@@ -217,6 +221,7 @@ function Workspace({
   initialInput: string;
   initialProvider: string;
 }) {
+  const [earnings,setEarnings]=useState<EarningsWeek|null>(null);
   const [input, setInput] = useState(initialInput),
     [provider, setProvider] = useState(initialProvider),
     [key, setKey] = useState(''),
@@ -921,7 +926,8 @@ function Workspace({
         </section>
       )}
       <div hidden={!!failedQuery || busy}>
-        <MarketScanPanel onSelect={series=>{setData(old=>[series,...old.filter(x=>x.symbol!==series.symbol)].slice(0,12));setSelected(series.symbol);setTab('guidance');}} />
+        <TradingNote series={current} />
+        <MarketScanPanel earnings={earnings} onSelect={series=>{setData(old=>[series,...old.filter(x=>x.symbol!==series.symbol)].slice(0,12));setSelected(series.symbol);setTab('guidance');}} />
         <DecisionBanner
           series={current}
           onDetails={() => setTab('guidance')}
@@ -2030,6 +2036,8 @@ function Workspace({
           </TabsContent>
         </Tabs>
       </div>
+      <details className="panel"><summary>下周财报提醒{earnings?` · ${earnings.start} 至 ${earnings.end} · ${earnings.rows.length}条`:""}</summary><EarningsCalendarPanel onLoad={setEarnings} /></details>
+      <details className="panel"><summary>公司投资与合作关系列表</summary><CompanyLinksPanel /></details>
       <footer>
         所有金额以 USD 计。回测与理论估值不保证未来收益。
         <a
