@@ -3,8 +3,9 @@ import type { Series } from '@/lib/engine';
 import { representatives } from '@/lib/representatives';
 import { researchContext } from '@/lib/research-context';
 import type {EarningsWeek} from '@/lib/earnings-calendar';
+import {logicGate,type LogicState} from '@/lib/logic';
 
-export default function CandidatePanel({ data, onSelect, onScan, busy, earnings }: { data: Series[]; onSelect: (symbol: string) => void; onScan?: () => void; busy: boolean; earnings?:EarningsWeek|null }) {
+export default function CandidatePanel({ data, onSelect, onScan, busy, earnings, logic }: { data: Series[]; onSelect: (symbol: string) => void; onScan?: () => void; busy: boolean; earnings?:EarningsWeek|null;logic?:LogicState }) {
   const candidates=representatives(data);
   const money=(n:number|null|undefined)=>n!=null&&Number.isFinite(n)?`$${n.toFixed(2)}`:'未确定';
   return <section className="panel" style={{border:'2px solid #4f9b86',marginBottom:24}} aria-label="股票代表机会">
@@ -15,13 +16,14 @@ export default function CandidatePanel({ data, onSelect, onScan, busy, earnings 
       {(['left','right'] as const).flatMap(group=>(['long','short'] as const).map(side=><div key={group+side} style={{padding:20,border:'1px solid #64748b',borderRadius:12}}>
         <h2>{group==='left'?'左侧':'右侧'} · {side==='long'?'↗ 做多观察':'↘ 做空观察'} · {candidates[group][side].length}/2</h2>
         {!candidates[group][side].length&&<p>有效数据或可分配的独立股票不足，本组暂留空。</p>}
-        {candidates[group][side].map(item=>{const review=researchContext(item.series,new Date(),earnings),blocked=review.eventBlocked||review.volatility||(group==='right'&&review.failures.some(f=>f.side===side));
+        {candidates[group][side].map(item=>{const gate=logicGate(logic,item.series.symbol,side),review=researchContext(item.series,new Date(),earnings),blocked=gate.blocked||review.eventBlocked||review.volatility||(group==='right'&&review.failures.some(f=>f.side===side));
           const values=review.chart.map(b=>b.close),bottom=Math.min(...values),span=Math.max(...values)-bottom;
           const points=values.map((v,i)=>`${10+i*280/Math.max(1,values.length-1)},${70-(span?(v-bottom)/span:0.5)*60}`).join(' ');
           return <article key={item.series.symbol} style={{borderTop:'1px solid #64748b',paddingTop:12,marginTop:16}}>
           <h3>{item.series.symbol} · {item.strategy}</h3>
           <p><strong>{blocked?'风险观察 · 暂缓入场':item.status} · 技术条件完成度 {item.completion}%（{item.passed}/{item.total}项）</strong></p>
-          <p>{blocked?'财报事件或价格结构风险尚未解除；技术完成度不覆盖这些风险。':item.ready?'日线技术条件已满足，入场前仍须核验当前价格、大盘与事件。':'观察候选，不宜据此入场。等待下列缺失条件，不自动下单。'}</p>
+          <p>{blocked?'事件、逻辑证据或价格结构风险尚未解除；技术完成度不覆盖这些风险。':item.ready?'日线技术条件已满足，入场前仍须核验当前价格、大盘与事件。':'观察候选，不宜据此入场。等待下列缺失条件，不自动下单。'}</p>
+          {gate.reasons.map(reason=><p key={reason}>⚠ {reason}</p>)}
           <svg viewBox="0 0 300 80" width="100%" height="80" role="img" aria-label={`${item.series.symbol}最近20根完整日线收盘走势，最低${money(bottom)}，最高${money(bottom+span)}`}><polyline fill="none" stroke="currentColor" strokeWidth="2" points={points}/></svg>
           <small>最近20根完整日线收盘走势 · {review.chart[0]?.date}—{review.chart.at(-1)?.date}</small>
           <p>{review.position} · 前20日边界 {money(review.low)}—{money(review.high)}</p>

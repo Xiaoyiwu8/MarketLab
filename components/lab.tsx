@@ -25,6 +25,8 @@ import TradeGuidancePanel from './trade-guidance-panel';
 import DecisionBanner from './decision-banner';
 import MarketScanPanel from './market-scan-panel';
 import TradingNote from './trading-note';
+import LogicPanel from './logic-panel';
+import type {LogicState} from '@/lib/logic';
 import EarningsCalendarPanel from './earnings-calendar-panel';
 import CompanyLinksPanel from './company-links-panel';
 import type {EarningsWeek} from '@/lib/earnings-calendar';
@@ -222,6 +224,7 @@ function Workspace({
   initialProvider: string;
 }) {
   const [earnings,setEarnings]=useState<EarningsWeek|null>(null);
+  const [logic,setLogic]=useState<LogicState>({rows:[],available:false});
   const [input, setInput] = useState(initialInput),
     [provider, setProvider] = useState(initialProvider),
     [key, setKey] = useState(''),
@@ -927,7 +930,8 @@ function Workspace({
       )}
       <div hidden={!!failedQuery || busy}>
         <TradingNote series={current} />
-        <MarketScanPanel earnings={earnings} onSelect={series=>{setData(old=>[series,...old.filter(x=>x.symbol!==series.symbol)].slice(0,12));setSelected(series.symbol);setTab('guidance');}} />
+        <LogicPanel series={current} earnings={earnings} state={logic} onChange={setLogic}/>
+        <MarketScanPanel logic={logic} earnings={earnings} onSelect={series=>{setData(old=>[series,...old.filter(x=>x.symbol!==series.symbol)].slice(0,12));setSelected(series.symbol);setTab('guidance');}} />
         <DecisionBanner
           series={current}
           onDetails={() => setTab('guidance')}
